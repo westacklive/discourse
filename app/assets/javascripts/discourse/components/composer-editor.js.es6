@@ -286,7 +286,7 @@ export default Component.extend({
       this.siteSettings.enable_s3_direct_attachment_uploads &&
       this.siteSettings.enable_s3_uploads;
 
-    console.log("Can upload direct to S3? " + (canUpload ? "YES" : "NO"));
+    // console.log("Can upload direct to S3? " + (canUpload ? "YES" : "NO"));
     return canUpload;
   },
 
@@ -683,15 +683,15 @@ export default Component.extend({
     );
 
     $element.on("fileuploadadd", (e, data) => {
-      console.log(data);
+      // console.log(data);
       ajax("/uploads/presign", {
         data: { filename: data.files[0].name }
       })
         .then(result => {
           data.url = result.url;
           data.submit();
-        })
-        .catch(err => alert(err));
+        });
+        //.catch(err => alert(err));
     });
 
     $element.on("fileuploadpaste", e => {
