@@ -491,6 +491,7 @@ Discourse::Application.routes.draw do
 
   post "uploads/lookup-metadata" => "uploads#metadata"
   post "uploads" => "uploads#create"
+  get "uploads/presign" => "uploads#presign"
   post "uploads/lookup-urls" => "uploads#lookup_urls"
 
   # used to download original images

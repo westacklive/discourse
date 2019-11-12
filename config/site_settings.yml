@@ -1130,6 +1130,9 @@ files:
   enable_s3_uploads:
     default: false
     client: true
+  enable_s3_direct_attachment_uploads:
+    default: true
+    client: true
   s3_use_iam_profile:
     default: false
   s3_access_key_id:

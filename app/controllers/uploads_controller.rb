@@ -50,6 +50,30 @@ class UploadsController < ApplicationController
     end
   end
 
+  def presign
+    params.require(:filename)
+    filename = params.fetch(:filename)
+
+    # return render_json_error(I18n.t("backup.backup_file_should_be_tar_gz")) unless valid_extension?(filename)
+    # return render_json_error(I18n.t("backup.invalid_filename")) unless valid_filename?(filename)
+    return render_json_error(I18n.t("upload.s3_direct_attachment_uploads_not_enabled")) if !SiteSetting.enable_s3_direct_attachment_uploads
+    return render_json_error(I18n.t("upload.s3_uploads_not_enabled")) if !SiteSetting.enable_s3_uploads
+
+    url = BackupRestore::S3BackupStoreMark2.new.generate_upload_url(filename)
+    # store = BackupRestore::BackupStore.create
+
+    #    begin
+    #      upload_url = store.generate_upload_url(filename)
+    #    rescue BackupRestore::BackupStore::BackupFileExists
+    #  return render_json_error(I18n("backup.file_exists"))
+    # rescue BackupRestore::BackupStore::StorageError => e
+    #   return render_json_error(e)
+    # end
+
+    render json: success_json.merge(url: url)
+
+  end
+
   def lookup_urls
     params.permit(short_urls: [])
     uploads = []

@@ -281,6 +281,15 @@ export default Component.extend({
     }
   },
 
+  _canUploadAttachmentDirectToS3() {
+    let canUpload =
+      this.siteSettings.enable_s3_direct_attachment_uploads &&
+      this.siteSettings.enable_s3_uploads;
+
+    console.log("Can upload direct to S3? " + (canUpload ? "YES" : "NO"));
+    return canUpload;
+  },
+
   _setUploadPlaceholderDone(data) {
     const filename = this._filenamePlaceholder(data);
     const filenameWithSize = `${filename} (${data.total})`;
@@ -645,12 +654,44 @@ export default Component.extend({
 
     const $element = $(this.element);
 
-    $element.fileupload({
-      url: Discourse.getURL(
+    let url = "";
+    if (!this._canUploadAttachmentDirectToS3()) {
+      url = Discourse.getURL(
         `/uploads.json?client_id=${this.messageBus.clientId}`
-      ),
-      dataType: "json",
-      pasteZone: $element
+      );
+    }
+
+    let additionalUploadOptions = {};
+    if (this._canUploadAttachmentDirectToS3()) {
+      additionalUploadOptions = {
+        autoUpload: false,
+        dataType: "xml",
+        multipart: false,
+        type: "PUT"
+      };
+    }
+
+    $element.fileupload(
+      _.merge(
+        {
+          url: url,
+          dataType: "json",
+          pasteZone: $element
+        },
+        additionalUploadOptions
+      )
+    );
+
+    $element.on("fileuploadadd", (e, data) => {
+      console.log(data);
+      ajax("/uploads/presign", {
+        data: { filename: data.files[0].name }
+      })
+        .then(result => {
+          data.url = result.url;
+          data.submit();
+        })
+        .catch(err => alert(err));
     });
 
     $element.on("fileuploadpaste", e => {
