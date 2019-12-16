@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class Category < ActiveRecord::Base
+  RESERVED_SLUGS = [
+    'none'
+  ]
+
   self.ignored_columns = %w{
     uploaded_meta_id
     suppress_from_latest
@@ -13,7 +17,6 @@ class Category < ActiveRecord::Base
   include AnonCacheInvalidator
   include HasDestroyedWebHook
 
-  MAX_NESTING = 2 # category + subcategory
   REQUIRE_TOPIC_APPROVAL = 'require_topic_approval'
   REQUIRE_REPLY_APPROVAL = 'require_reply_approval'
   NUM_AUTO_BUMP_DAILY = 'num_auto_bump_daily'
@@ -60,6 +63,7 @@ class Category < ActiveRecord::Base
   validate :permissions_compatibility_validator
 
   validates :auto_close_hours, numericality: { greater_than: 0, less_than_or_equal_to: 87600 }, allow_nil: true
+  validates :slug, exclusion: { in: RESERVED_SLUGS }
 
   after_create :create_category_definition
 
@@ -329,7 +333,7 @@ class Category < ActiveRecord::Base
 
   # This is used in a validation so has to produce accurate results before the
   # record has been saved
-  def height_of_ancestors(max_height = MAX_NESTING)
+  def height_of_ancestors(max_height = SiteSetting.max_category_nesting)
     parent_id = self.parent_category_id
 
     return max_height if parent_id == id
@@ -357,7 +361,7 @@ class Category < ActiveRecord::Base
 
   # This is used in a validation so has to produce accurate results before the
   # record has been saved
-  def depth_of_descendants(max_depth = MAX_NESTING)
+  def depth_of_descendants(max_depth = SiteSetting.max_category_nesting)
     parent_id = self.parent_category_id
 
     return max_depth if parent_id == id
@@ -390,7 +394,7 @@ class Category < ActiveRecord::Base
       errors.add(:base, I18n.t("category.errors.self_parent")) if parent_category_id == id
 
       total_depth = height_of_ancestors + 1 + depth_of_descendants
-      errors.add(:base, I18n.t("category.errors.depth")) if total_depth > MAX_NESTING
+      errors.add(:base, I18n.t("category.errors.depth")) if total_depth > SiteSetting.max_category_nesting
     end
   end
 

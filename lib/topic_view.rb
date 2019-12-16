@@ -152,7 +152,7 @@ class TopicView
 
   def next_page
     @next_page ||= begin
-      if last_post && (@topic.highest_post_number > last_post.post_number)
+      if last_post && highest_post_number && (highest_post_number > last_post.post_number)
         @page + 1
       end
     end
@@ -426,6 +426,10 @@ class TopicView
 
   def links
     @links ||= TopicLink.topic_map(@guardian, @topic.id)
+  end
+
+  def user_post_bookmarks
+    @user_post_bookmarks ||= Bookmark.where(user: @user, post_id: unfiltered_post_ids)
   end
 
   def reviewable_counts

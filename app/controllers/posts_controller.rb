@@ -335,7 +335,7 @@ class PostsController < ApplicationController
     params.require(:post_ids)
     agree_with_first_reply_flag = (params[:agree_with_first_reply_flag] || true).to_s == "true"
 
-    posts = Post.where(id: post_ids_including_replies)
+    posts = Post.where(id: post_ids_including_replies).order(:id)
     raise Discourse::InvalidParameters.new(:post_ids) if posts.blank?
 
     # Make sure we can delete the posts
@@ -506,6 +506,15 @@ class PostsController < ApplicationController
 
     topic_user = TopicUser.get(post.topic, current_user)
     render_json_dump(topic_bookmarked: topic_user.try(:bookmarked))
+  end
+
+  def destroy_bookmark
+    params.require(:post_id)
+
+    existing_bookmark = Bookmark.find_by(post_id: params[:post_id], user_id: current_user.id)
+    existing_bookmark.destroy if existing_bookmark.present?
+
+    render json: success_json
   end
 
   def wiki

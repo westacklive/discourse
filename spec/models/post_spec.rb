@@ -985,6 +985,7 @@ describe Post do
     describe 'mentions' do
       fab!(:group) do
         Fabricate(:group,
+          visibility_level: Group.visibility_levels[:members],
           mentionable_level: Group::ALIAS_LEVELS[:members_mods_and_admins]
         )
       end
@@ -1335,7 +1336,6 @@ describe Post do
           :put,
           "https://#{SiteSetting.s3_upload_bucket}.s3.amazonaws.com/original/1X/#{attachment_upload.sha1}.#{attachment_upload.extension}?acl"
         )
-
         stub_request(
           :put,
           "https://#{SiteSetting.s3_upload_bucket}.s3.amazonaws.com/original/1X/#{image_upload.sha1}.#{image_upload.extension}?acl"

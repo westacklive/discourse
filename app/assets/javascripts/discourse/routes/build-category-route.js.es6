@@ -17,14 +17,28 @@ export default (filterArg, params) => {
     queryParams,
 
     serialize(modelParams) {
-      if (!modelParams.categorySlugPathWithID) {
-        modelParams.categorySlugPathWithID = [
-          modelParams.parentSlug,
-          modelParams.slug,
-          modelParams.id
-        ]
-          .filter(x => x)
-          .join("/");
+      if (!modelParams.category_slug_path_with_id) {
+        if (modelParams.id === "none") {
+          const category_slug_path_with_id = [
+            modelParams.parentSlug,
+            modelParams.slug
+          ].join("/");
+          const category = Category.findBySlugPathWithID(
+            category_slug_path_with_id
+          );
+          this.replaceWith("discovery.categoryNone", {
+            category,
+            category_slug_path_with_id
+          });
+        } else {
+          modelParams.category_slug_path_with_id = [
+            modelParams.parentSlug,
+            modelParams.slug,
+            modelParams.id
+          ]
+            .filter(x => x)
+            .join("/");
+        }
       }
 
       return modelParams;
@@ -33,28 +47,9 @@ export default (filterArg, params) => {
     model(modelParams) {
       modelParams = this.serialize(modelParams);
 
-      const parts = modelParams.categorySlugPathWithID.split("/");
-      let category = null;
-
-      if (parts.length > 0 && parts[parts.length - 1].match(/^\d+$/)) {
-        const id = parseInt(parts.pop(), 10);
-
-        category = Category.findByID(id);
-      } else {
-        const [slug, parentSlug] = [...parts].reverse();
-
-        category = Category.findBySlug(slug, parentSlug);
-
-        if (
-          !category &&
-          parts.length > 0 &&
-          parts[parts.length - 1].match(/^\d+-/)
-        ) {
-          const id = parseInt(parts.pop(), 10);
-
-          category = Category.findByID(id);
-        }
-      }
+      const category = Category.findBySlugPathWithID(
+        modelParams.category_slug_path_with_id
+      );
 
       if (category) {
         return { category };
@@ -107,9 +102,9 @@ export default (filterArg, params) => {
     },
 
     _retrieveTopicList(category, transition) {
-      const listFilter = `c/${Category.slugFor(category)}/l/${this.filter(
-          category
-        )}`,
+      const listFilter = `c/${Category.slugFor(category)}/${
+          category.id
+        }/l/${this.filter(category)}`,
         findOpts = filterQueryParams(transition.to.queryParams, params),
         extras = { cached: this.isPoppedState(transition) };
 

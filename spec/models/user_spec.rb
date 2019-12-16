@@ -979,7 +979,7 @@ describe User do
       end
 
       after do
-        $redis.flushall
+        Discourse.redis.flushall
       end
 
       it "updates last_seen_at" do
@@ -2238,6 +2238,41 @@ describe User do
           expect(user.reload.secure_identifier).not_to eq(nil)
         end
       end
+    end
+  end
+
+  describe 'Granting admin or moderator status' do
+    it 'approves the associated reviewable when granting admin status' do
+      reviewable_user = Fabricate(:reviewable_user)
+
+      reviewable_user.target.grant_admin!
+
+      expect(reviewable_user.reload.status).to eq Reviewable.statuses[:approved]
+    end
+
+    it 'does nothing when the user is already approved' do
+      reviewable_user = Fabricate(:reviewable_user)
+      reviewable_user.perform(Discourse.system_user, :approve_user)
+
+      reviewable_user.target.grant_admin!
+
+      expect(reviewable_user.reload.status).to eq Reviewable.statuses[:approved]
+    end
+
+    it 'approves the associated reviewable when granting moderator status' do
+      reviewable_user = Fabricate(:reviewable_user)
+
+      reviewable_user.target.grant_moderation!
+
+      expect(reviewable_user.reload.status).to eq Reviewable.statuses[:approved]
+    end
+
+    it 'approves the user if there is no reviewable' do
+      user = Fabricate(:user, approved: false)
+
+      user.grant_admin!
+
+      expect(user.approved).to eq(true)
     end
   end
 end
