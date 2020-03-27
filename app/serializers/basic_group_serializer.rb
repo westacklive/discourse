@@ -25,6 +25,9 @@ class BasicGroupSerializer < ApplicationSerializer
              :imap_mailboxes,
              :email_username,
              :email_password,
+             :imap_last_error,
+             :imap_old_emails,
+             :imap_new_emails,
              :has_messages,
              :flair_url,
              :flair_bg_color,
@@ -103,6 +106,18 @@ class BasicGroupSerializer < ApplicationSerializer
   end
 
   def include_email_password?
+    scope.is_admin?
+  end
+
+  def include_imap_last_error?
+    scope.is_admin?
+  end
+
+  def include_imap_old_emails?
+    scope.is_admin?
+  end
+
+  def include_imap_new_emails?
     scope.is_admin?
   end
 
