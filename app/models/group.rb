@@ -39,6 +39,8 @@ class Group < ActiveRecord::Base
   after_save :expire_cache
   after_destroy :expire_cache
 
+  before_save :reset_imap, if: :imap_mailbox_name_changed?
+
   after_commit :automatic_group_membership, on: [:create, :update]
   after_commit :trigger_group_created_event, on: :create
   after_commit :trigger_group_updated_event, on: :update
@@ -48,6 +50,13 @@ class Group < ActiveRecord::Base
     ApplicationSerializer.expire_cache_fragment!("group_names")
     SvgSprite.expire_cache
     Discourse.cache.delete("group_imap_mailboxes_#{self.id}")
+  end
+
+  def reset_imap
+    self.imap_uid_validity = 0
+    self.imap_last_uid = 0
+    self.imap_old_emails = 0
+    self.imap_new_emails = 0
   end
 
   def remove_review_groups
