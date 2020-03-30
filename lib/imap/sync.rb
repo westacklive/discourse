@@ -104,6 +104,8 @@ module Imap
       all_new_uids_size = new_uids.size
 
       @group.update_columns(
+        imap_uid_validity: @status[:uid_validity],
+        imap_last_uid: @group.imap_last_uid || 0,
         imap_last_error: nil,
         imap_old_emails: all_old_uids_size,
         imap_new_emails: all_new_uids_size
@@ -156,16 +158,14 @@ module Imap
 
           processed += 1
           @group.update_columns(
+            imap_uid_validity: @status[:uid_validity],
+            imap_last_uid: email['UID'] || @group.imap_last_uid || 0,
+            imap_last_error: nil,
             imap_old_emails: all_old_uids_size + processed,
             imap_new_emails: all_new_uids_size - processed
           )
         end
       end
-
-      @group.update_columns(
-        imap_uid_validity: @status[:uid_validity],
-        imap_last_uid: new_uids.last || @group.imap_last_uid || 0
-      )
 
       # Discourse -> IMAP server (upload): syncs updated flags and labels.
       if SiteSetting.enable_imap_write
