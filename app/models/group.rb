@@ -959,13 +959,14 @@ end
 #  imap_server                        :string
 #  imap_port                          :integer
 #  imap_ssl                           :boolean
-#  imap_mailbox_name                  :string
+#  imap_mailbox_name                  :string           default(""), not null
 #  imap_uid_validity                  :integer          default(0), not null
 #  imap_last_uid                      :integer          default(0), not null
 #  email_username                     :string
 #  email_password                     :string
-#  publish_read_state                 :boolean          default(FALSE), not null
-#  members_visibility_level           :integer          default(0), not null
+#  imap_last_error                    :text
+#  imap_old_emails                    :integer
+#  imap_new_emails                    :integer
 #
 # Indexes
 #
