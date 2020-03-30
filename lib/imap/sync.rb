@@ -164,7 +164,7 @@ module Imap
 
       @group.update_columns(
         imap_uid_validity: @status[:uid_validity],
-        imap_last_uid: new_uids.last || 0
+        imap_last_uid: new_uids.last || @group.imap_last_uid || 0
       )
 
       # Discourse -> IMAP server (upload): syncs updated flags and labels.
