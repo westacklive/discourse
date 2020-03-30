@@ -25,32 +25,32 @@ class Demon::EmailSync < ::Demon::Base
       RailsMultisite::ConnectionManagement.with_connection(db) do
         begin
           obj = Imap::Sync.for_group(group)
-        rescue Net::IMAP::NoResponseError => e
+
+          @sync_lock.synchronize { @sync_data[db][group.id][:obj] = obj }
+
+          status = nil
+          idle = false
+
+          while @running && group.reload.imap_mailbox_name.present? do
+            status = obj.process(
+              idle: obj.can_idle? && status && status[:remaining] == 0,
+              old_emails_limit: status && status[:remaining] > 0 ? 0 : nil,
+            )
+
+            if !obj.can_idle? && status[:remaining] == 0
+              # Thread goes into sleep for a bit so it is better to return any
+              # connection back to the pool.
+              ActiveRecord::Base.connection_handler.clear_active_connections!
+
+              sleep SiteSetting.imap_polling_period_mins.minutes
+            end
+          end
+
+          obj.disconnect!
+        rescue Net::IMAP::NoResponseError, Net::IMAP::BadResponseError => e
           group.update(imap_last_error: e.message)
           Thread.exit
         end
-
-        @sync_lock.synchronize { @sync_data[db][group.id][:obj] = obj }
-
-        status = nil
-        idle = false
-
-        while @running && group.reload.imap_mailbox_name.present? do
-          status = obj.process(
-            idle: obj.can_idle? && status && status[:remaining] == 0,
-            old_emails_limit: status && status[:remaining] > 0 ? 0 : nil,
-          )
-
-          if !obj.can_idle? && status[:remaining] == 0
-            # Thread goes into sleep for a bit so it is better to return any
-            # connection back to the pool.
-            ActiveRecord::Base.connection_handler.clear_active_connections!
-
-            sleep SiteSetting.imap_polling_period_mins.minutes
-          end
-        end
-
-        obj.disconnect!
       end
     end
   end
@@ -140,7 +140,7 @@ class Demon::EmailSync < ::Demon::Base
       # connection back to the pool.
       ActiveRecord::Base.connection_handler.clear_active_connections!
 
-      sleep 5
+      sleep 10
     end
 
     @sync_lock.synchronize { kill_threads }
