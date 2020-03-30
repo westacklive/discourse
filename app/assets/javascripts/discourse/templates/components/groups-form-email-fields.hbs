@@ -13,49 +13,48 @@
 
   <div class="control-group">
     <label for="smtp_server">{{i18n "groups.manage.email.credentials.smtp_server"}}</label>
-    {{input type="text" name="smtp_server" value=model.smtp_server}}
+    {{input type="text" id="smtp_server" value=model.smtp_server}}
   </div>
 
   <div class="control-group">
     <label for="smtp_port">{{i18n "groups.manage.email.credentials.smtp_port"}}</label>
-    {{input type="text" name="smtp_port" value=model.smtp_port}}
+    {{input type="text" id="smtp_port" value=model.smtp_port}}
   </div>
 
-  <div class="control-group">
-    {{input type="checkbox" name="smtp_ssl" checked=model.smtp_ssl}}
-    <label class="control-group-inline" for="smtp_ssl">{{i18n "groups.manage.email.credentials.smtp_ssl"}}</label>
+  <div class="control-group control-group-inline">
+    {{input type="checkbox" id="smtp_ssl" checked=model.smtp_ssl}}
+    <label for="smtp_ssl">{{i18n "groups.manage.email.credentials.smtp_ssl"}}</label>
   </div>
 
   <div class="control-group">
     <label for="imap_server">{{i18n "groups.manage.email.credentials.imap_server"}}</label>
-    {{input type="text" name="imap_server" value=model.imap_server}}
+    {{input type="text" id="imap_server" value=model.imap_server}}
   </div>
 
   <div class="control-group">
     <label for="imap_port">{{i18n "groups.manage.email.credentials.imap_port"}}</label>
-    {{input type="text" name="imap_port" value=model.imap_port}}
+    {{input type="text" id="imap_port" value=model.imap_port}}
   </div>
 
-  <div class="control-group">
-    {{input type="checkbox" name="imap_ssl" checked=model.imap_ssl}}
-    <label class="control-group-inline" for="imap_ssl">{{i18n "groups.manage.email.credentials.imap_ssl"}}</label>
+  <div class="control-group control-group-inline">
+    {{input type="checkbox" id="imap_ssl" checked=model.imap_ssl}}
+    <label for="imap_ssl">{{i18n "groups.manage.email.credentials.imap_ssl"}}</label>
   </div>
 
   <div class="control-group">
     <label for="username">{{i18n "groups.manage.email.credentials.username"}}</label>
-    {{input type="text" name="username" value=model.email_username}}
+    {{input type="text" id="username" value=model.email_username}}
   </div>
 
   <div class="control-group">
     <label for="password">{{i18n "groups.manage.email.credentials.password"}}</label>
-    {{input type="password" name="password" value=model.email_password}}
+    {{input type="password" id="password" value=model.email_password}}
   </div>
 
   <div class="control-group">
     {{#if mailboxes}}
-      <label for="imap_mailbox_name">{{i18n "groups.manage.email.mailboxes.synchronized"}}</label>
-      {{combo-box name="imap_mailbox_name"
-                  value=model.imap_mailbox_name
+      <label>{{i18n "groups.manage.email.mailboxes.synchronized"}}</label>
+      {{combo-box value=model.imap_mailbox_name
                   valueProperty="value"
                   content=mailboxes
                   none="groups.manage.email.mailboxes.disabled"

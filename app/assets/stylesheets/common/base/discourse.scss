@@ -572,6 +572,12 @@ table {
     @include clearfix;
   }
 
+  .control-group-inline {
+    label {
+      display: inline;
+    }
+  }
+
   .control-label {
     font-weight: bold;
     font-size: $font-up-2;
