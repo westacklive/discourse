@@ -11,6 +11,8 @@ module Jobs
       post = Post.find_by(id: args[:post_id])
       email = args[:email]
 
+      return if !group || !post
+
       Rails.logger.debug("[IMAP] Sending email for group #{group.name} and post #{post.id}")
       message = GroupSmtpMailer.send_mail(group, email, post)
       Email::Sender.new(message, :group_smtp).send
