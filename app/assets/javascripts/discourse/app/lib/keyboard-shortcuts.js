@@ -3,7 +3,7 @@ import DiscourseURL from "discourse/lib/url";
 import Composer from "discourse/models/composer";
 import { minimumOffset } from "discourse/lib/offset-calculator";
 import { ajax } from "discourse/lib/ajax";
-import { throttle } from "@ember/runloop";
+import { throttle, schedule } from "@ember/runloop";
 import { INPUT_DELAY } from "discourse-common/config/environment";
 
 const DEFAULT_BINDINGS = {
@@ -54,7 +54,7 @@ const DEFAULT_BINDINGS = {
       ".latest-topic-list .latest-topic-list-item.selected div.main-link a.title",
       ".top-topic-list .latest-topic-list-item.selected div.main-link a.title",
       ".latest .featured-topic.selected a.title",
-      ".search-results .search-link"
+      ".search-results .fps-result.selected .search-link"
     ].join(", "),
     anonymous: true
   }, // open selected topic on latest or categories page
@@ -330,12 +330,17 @@ export default {
     });
   },
 
-  focusComposer() {
+  focusComposer(event) {
     const composer = this.container.lookup("controller:composer");
     if (composer.get("model.viewOpen")) {
-      setTimeout(() => $("textarea.d-editor-input").focus(), 0);
+      preventKeyboardEvent(event);
+
+      schedule("afterRender", () => {
+        const input = document.querySelector("textarea.d-editor-input");
+        input && input.focus();
+      });
     } else {
-      composer.send("openIfDraft");
+      composer.openIfDraft(event);
     }
   },
 
@@ -494,7 +499,7 @@ export default {
   _globalBindToFunction(func, binding) {
     let funcToBind = typeof func === "function" ? func : this[func];
     if (typeof funcToBind === "function") {
-      this.keyTrapper.bindGlobal(binding, this[func].bind(this));
+      this.keyTrapper.bindGlobal(binding, funcToBind.bind(this));
     }
   },
 

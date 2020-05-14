@@ -1,3 +1,4 @@
+import I18n from "I18n";
 import { isEmpty } from "@ember/utils";
 import { userPath } from "discourse/lib/url";
 
@@ -35,8 +36,8 @@ export function transformBasicPost(post) {
     username: post.username,
     avatar_template: post.avatar_template,
     bookmarked: post.bookmarked,
-    bookmarkedWithReminder: post.bookmarked_with_reminder,
     bookmarkReminderAt: post.bookmark_reminder_at,
+    bookmarkName: post.bookmark_name,
     bookmarkReminderType: post.bookmark_reminder_type,
     yours: post.yours,
     shareUrl: post.get("shareUrl"),

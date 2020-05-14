@@ -1,3 +1,4 @@
+import I18n from "I18n";
 import { registerUnbound } from "discourse-common/lib/helpers";
 import {
   longDate,
@@ -5,6 +6,7 @@ import {
   number
 } from "discourse/lib/formatter";
 import { htmlSafe } from "@ember/template";
+import { escapeExpression } from "discourse/lib/utilities";
 
 registerUnbound("raw-date", dt => htmlSafe(longDate(new Date(dt))));
 
@@ -37,10 +39,10 @@ registerUnbound("number", (orig, params) => {
   // Round off the thousands to one decimal place
   const n = number(orig);
   if (n.toString() !== title.toString() && addTitle) {
-    result += " title='" + Handlebars.Utils.escapeExpression(title) + "'";
+    result += " title='" + escapeExpression(title) + "'";
   }
   if (params.ariaLabel) {
-    const ariaLabel = Handlebars.Utils.escapeExpression(params.ariaLabel);
+    const ariaLabel = escapeExpression(params.ariaLabel);
     result += ` aria-label='${ariaLabel}'`;
   }
 

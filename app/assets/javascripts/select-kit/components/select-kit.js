@@ -1,3 +1,4 @@
+import I18n from "I18n";
 import EmberObject, { computed, get, guidFor } from "@ember/object";
 import Component from "@ember/component";
 import deprecated from "discourse-common/lib/deprecated";
@@ -16,12 +17,8 @@ import {
 } from "@ember/runloop";
 import { Promise } from "rsvp";
 import {
-  applyHeaderContentPluginApiCallbacks,
-  applyModifyNoSelectionPluginApiCallbacks,
   applyContentPluginApiCallbacks,
-  applyOnOpenPluginApiCallbacks,
-  applyOnClosePluginApiCallbacks,
-  applyOnInputPluginApiCallbacks
+  applyOnChangePluginApiCallbacks
 } from "select-kit/mixins/plugin-api";
 
 export const MAIN_COLLECTION = "MAIN_COLLECTION";
@@ -273,7 +270,8 @@ export default Component.extend(
       filterComponent: "select-kit/select-kit-filter",
       selectedNameComponent: "selected-name",
       castInteger: false,
-      preventsClickPropagation: false
+      preventsClickPropagation: false,
+      focusAfterOnchange: true
     },
 
     autoFilterable: computed("content.[]", "selectKit.filter", function() {
@@ -379,15 +377,7 @@ export default Component.extend(
         cancel(this._searchPromise);
       }
 
-      const input = applyOnInputPluginApiCallbacks(
-        this.pluginApiIdentifiers,
-        event,
-        this.selectKit
-      );
-
-      if (input) {
-        debounce(this, this._debouncedInput, event.target.value, 200);
-      }
+      debounce(this, this._debouncedInput, event.target.value, 200);
     },
 
     _debouncedInput(filter) {
@@ -430,6 +420,9 @@ export default Component.extend(
         }
 
         this._boundaryActionHandler("onChange", value, items);
+
+        applyOnChangePluginApiCallbacks(value, items, this);
+
         resolve(items);
       }).finally(() => {
         if (!this.isDestroying && !this.isDestroyed) {
@@ -437,10 +430,12 @@ export default Component.extend(
             this.selectKit.close();
           }
 
-          this._safeAfterRender(() => {
-            this._focusFilter();
-            this.popper && this.popper.update();
-          });
+          if (this.selectKit.options.focusAfterOnchange) {
+            this._safeAfterRender(() => {
+              this._focusFilter();
+              this.popper && this.popper.update();
+            });
+          }
         }
       });
     },
@@ -448,11 +443,7 @@ export default Component.extend(
     _modifyContentWrapper(content) {
       content = this.modifyContent(content);
 
-      return applyContentPluginApiCallbacks(
-        this.pluginApiIdentifiers,
-        content,
-        this.selectKit
-      );
+      return applyContentPluginApiCallbacks(content, this);
     },
 
     modifyContent(content) {
@@ -460,13 +451,7 @@ export default Component.extend(
     },
 
     _modifyNoSelectionWrapper() {
-      let none = this.modifyNoSelection();
-
-      return applyModifyNoSelectionPluginApiCallbacks(
-        this.pluginApiIdentifiers,
-        none,
-        this.selectKit
-      );
+      return this.modifyNoSelection();
     },
 
     modifyNoSelection() {
@@ -498,12 +483,6 @@ export default Component.extend(
     },
 
     _modifySelectionWrapper(item) {
-      applyHeaderContentPluginApiCallbacks(
-        this.pluginApiIdentifiers,
-        item,
-        this.selectKit
-      );
-
       return this.modifySelection(item);
     },
 
@@ -666,19 +645,18 @@ export default Component.extend(
     },
 
     _highlightNext() {
-      const highlightedIndex = this.mainCollection.indexOf(
+      let highlightedIndex = this.mainCollection.indexOf(
         this.selectKit.highlighted
       );
-      let newHighlightedIndex = highlightedIndex;
       const count = this.mainCollection.length;
 
       if (highlightedIndex < count - 1) {
-        newHighlightedIndex = highlightedIndex + 1;
+        highlightedIndex = highlightedIndex + 1;
       } else {
-        newHighlightedIndex = 0;
+        highlightedIndex = 0;
       }
 
-      const highlighted = this.mainCollection.objectAt(newHighlightedIndex);
+      const highlighted = this.mainCollection.objectAt(highlightedIndex);
       if (highlighted) {
         this._scrollToRow(highlighted);
         this.set("selectKit.highlighted", highlighted);
@@ -686,19 +664,18 @@ export default Component.extend(
     },
 
     _highlightPrevious() {
-      const highlightedIndex = this.mainCollection.indexOf(
+      let highlightedIndex = this.mainCollection.indexOf(
         this.selectKit.highlighted
       );
-      let newHighlightedIndex = highlightedIndex;
       const count = this.mainCollection.length;
 
       if (highlightedIndex > 0) {
-        newHighlightedIndex = highlightedIndex - 1;
+        highlightedIndex = highlightedIndex - 1;
       } else {
-        newHighlightedIndex = count - 1;
+        highlightedIndex = count - 1;
       }
 
-      const highlighted = this.mainCollection.objectAt(newHighlightedIndex);
+      const highlighted = this.mainCollection.objectAt(highlightedIndex);
       if (highlighted) {
         this._scrollToRow(highlighted);
         this.set("selectKit.highlighted", highlighted);
@@ -731,30 +708,14 @@ export default Component.extend(
       this.selectKit.change(null, null);
     },
 
-    _onOpenWrapper(event) {
-      let boundaryAction = this._boundaryActionHandler("onOpen");
-
-      boundaryAction = applyOnOpenPluginApiCallbacks(
-        this.pluginApiIdentifiers,
-        this.selectKit,
-        event
-      );
-
-      return boundaryAction;
+    _onOpenWrapper() {
+      return this._boundaryActionHandler("onOpen");
     },
 
-    _onCloseWrapper(event) {
+    _onCloseWrapper() {
       this.set("selectKit.highlighted", null);
 
-      let boundaryAction = this._boundaryActionHandler("onClose");
-
-      boundaryAction = applyOnClosePluginApiCallbacks(
-        this.pluginApiIdentifiers,
-        this.selectKit,
-        event
-      );
-
-      return boundaryAction;
+      return this._boundaryActionHandler("onClose");
     },
 
     _toggle(event) {
@@ -772,9 +733,7 @@ export default Component.extend(
 
       this.clearErrors();
 
-      if (!this.selectKit.onClose(event)) {
-        return;
-      }
+      this.selectKit.onClose(event);
 
       this.selectKit.setProperties({
         isExpanded: false,
@@ -789,9 +748,7 @@ export default Component.extend(
 
       this.clearErrors();
 
-      if (!this.selectKit.onOpen(event)) {
-        return;
-      }
+      this.selectKit.onOpen(event);
 
       if (!this.popper) {
         const anchor = document.querySelector(
@@ -808,7 +765,7 @@ export default Component.extend(
           placementStrategy = inModal ? "fixed" : "absolute";
         }
 
-        const verticalOffset = this.multiSelect ? 0 : 2;
+        const verticalOffset = this.multiSelect ? 0 : 3;
 
         /* global Popper:true */
         this.popper = Popper.createPopper(anchor, popper, {
@@ -820,6 +777,48 @@ export default Component.extend(
               name: "offset",
               options: {
                 offset: [0, verticalOffset]
+              }
+            },
+            {
+              name: "applySmallScreenOffset",
+              enabled: window.innerWidth <= 450,
+              phase: "main",
+              fn({ state }) {
+                if (!inModal) {
+                  let { x } = state.elements.reference.getBoundingClientRect();
+                  state.modifiersData.popperOffsets.x = -x + 10;
+                }
+              }
+            },
+            {
+              name: "applySmallScreenMaxWidth",
+              enabled: window.innerWidth <= 450,
+              phase: "beforeWrite",
+              fn({ state }) {
+                if (inModal) {
+                  const innerModal = document.querySelector(
+                    "#discourse-modal div.modal-inner-container"
+                  );
+
+                  if (innerModal) {
+                    state.styles.popper.width = `${innerModal.clientWidth -
+                      20}px`;
+                  }
+                } else {
+                  state.styles.popper.width = `${window.innerWidth - 20}px`;
+                }
+              }
+            },
+            {
+              name: "sameWidth",
+              enabled: window.innerWidth > 450,
+              phase: "beforeWrite",
+              requires: ["computeStyles"],
+              fn: ({ state }) => {
+                state.styles.popper.minWidth = `${state.rects.reference.width}px`;
+              },
+              effect: ({ state }) => {
+                state.elements.popper.style.minWidth = `${state.elements.reference.offsetWidth}px`;
               }
             },
             {

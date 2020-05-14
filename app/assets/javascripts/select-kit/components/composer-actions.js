@@ -1,3 +1,4 @@
+import I18n from "I18n";
 import DropdownSelectBoxComponent from "select-kit/components/dropdown-select-box";
 import {
   PRIVATE_MESSAGE,
@@ -133,8 +134,7 @@ export default DropdownSelectBoxComponent.extend({
     if (
       this.canWhisper &&
       (!_postSnapshot ||
-        (_postSnapshot &&
-          _postSnapshot.post_type !== this.site.post_types.whisper))
+        _postSnapshot.post_type !== this.site.post_types.whisper)
     ) {
       items.push({
         name: I18n.t("composer.composer_actions.toggle_whisper.label"),

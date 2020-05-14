@@ -5,7 +5,6 @@ import RestModel from "discourse/models/rest";
 import { on } from "discourse-common/utils/decorators";
 import PermissionType from "discourse/models/permission-type";
 import { NotificationLevels } from "discourse/lib/notification-levels";
-import deprecated from "discourse-common/lib/deprecated";
 import Site from "discourse/models/site";
 import User from "discourse/models/user";
 
@@ -187,7 +186,8 @@ const Category = RestModel.extend({
           "navigate_to_first_post_after_read"
         ),
         search_priority: this.search_priority,
-        reviewable_by_group_name: this.reviewable_by_group_name
+        reviewable_by_group_name: this.reviewable_by_group_name,
+        read_only_banner: this.read_only_banner
       },
       type: id ? "PUT" : "POST"
     });
@@ -509,16 +509,6 @@ Category.reopenClass({
     return _.sortBy(data, category => {
       return category.get("read_restricted");
     });
-  }
-});
-
-Object.defineProperty(Discourse, "Category", {
-  get() {
-    deprecated(
-      "Import the Category class instead of using Discourse.Category",
-      { since: "2.4.0", dropFrom: "2.5.0" }
-    );
-    return Category;
   }
 });
 

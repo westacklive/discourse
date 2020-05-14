@@ -1,3 +1,4 @@
+import I18n from "I18n";
 import EmberObject from "@ember/object";
 import { not, notEmpty, equal, and, or } from "@ember/object/computed";
 import { ajax } from "discourse/lib/ajax";
@@ -10,7 +11,7 @@ import ActionSummary from "discourse/models/action-summary";
 import { popupAjaxError } from "discourse/lib/ajax-error";
 import { censor } from "pretty-text/censored-words";
 import { emojiUnescape } from "discourse/lib/text";
-import PreloadStore from "preload-store";
+import PreloadStore from "discourse/lib/preload-store";
 import { userPath } from "discourse/lib/url";
 import discourseComputed, {
   observes,
@@ -236,16 +237,6 @@ const Topic = RestModel.extend({
     this.set("category", Category.findById(this.category_id));
   },
 
-  @observes("categoryName")
-  _categoryNameChanged() {
-    const categoryName = this.categoryName;
-    let category;
-    if (categoryName) {
-      category = this.site.get("categories").findBy("name", categoryName);
-    }
-    this.set("category", category);
-  },
-
   categoryClass: fmt("category.fullSlug", "category-%@"),
 
   @discourseComputed("tags")
@@ -400,7 +391,6 @@ const Topic = RestModel.extend({
   afterTopicBookmarked(firstPost) {
     if (firstPost) {
       firstPost.set("bookmarked", true);
-      firstPost.set("bookmarked_with_reminder", true);
       this.set("bookmark_reminder_at", firstPost.bookmark_reminder_at);
       return [firstPost.id];
     }
@@ -439,7 +429,7 @@ const Topic = RestModel.extend({
     return this.firstPost().then(firstPost => {
       const toggleBookmarkOnServer = () => {
         if (bookmark) {
-          return firstPost.toggleBookmarkWithReminder().then(() => {
+          return firstPost.toggleBookmark().then(() => {
             this.set("bookmarking", false);
             return this.afterTopicBookmarked(firstPost);
           });
@@ -449,7 +439,7 @@ const Topic = RestModel.extend({
               this.toggleProperty("bookmarked");
               this.set("bookmark_reminder_at", null);
               let clearedBookmarkProps = {
-                bookmarked_with_reminder: false,
+                bookmarked: false,
                 bookmark_id: null,
                 bookmark_name: null,
                 bookmark_reminder_at: null
@@ -458,10 +448,6 @@ const Topic = RestModel.extend({
                 const updated = [];
                 posts.forEach(post => {
                   if (post.bookmarked) {
-                    post.set("bookmarked", false);
-                    updated.push(post.id);
-                  }
-                  if (post.bookmarked_with_reminder) {
                     post.setProperties(clearedBookmarkProps);
                     updated.push(post.id);
                   }
@@ -477,11 +463,7 @@ const Topic = RestModel.extend({
 
       const unbookmarkedPosts = [];
       if (!bookmark && posts) {
-        posts.forEach(
-          post =>
-            (post.bookmarked || post.bookmarked_with_reminder) &&
-            unbookmarkedPosts.push(post)
-        );
+        posts.forEach(post => post.bookmarked && unbookmarkedPosts.push(post));
       }
 
       return new Promise(resolve => {

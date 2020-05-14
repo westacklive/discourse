@@ -1,7 +1,9 @@
+import I18n from "I18n";
 import Controller, { inject as controller } from "@ember/controller";
 import ModalFunctionality from "discourse/mixins/modal-functionality";
 import discourseComputed from "discourse-common/utils/decorators";
 import { alias } from "@ember/object/computed";
+import { action } from "@ember/object";
 
 export default Controller.extend(ModalFunctionality, {
   adminUserIndex: controller(),
@@ -14,7 +16,10 @@ export default Controller.extend(ModalFunctionality, {
 
   @discourseComputed("username", "targetUsername")
   text(username, targetUsername) {
-    return `transfer @${username} to @${targetUsername}`;
+    return I18n.t(`admin.user.merge.confirmation.text`, {
+      username,
+      targetUsername
+    });
   },
 
   @discourseComputed("value", "text")
@@ -22,14 +27,14 @@ export default Controller.extend(ModalFunctionality, {
     return !value || text !== value;
   },
 
-  actions: {
-    merge() {
-      this.adminUserIndex.send("merge", this.targetUsername);
-      this.send("closeModal");
-    },
+  @action
+  confirm() {
+    this.adminUserIndex.send("merge", this.targetUsername);
+    this.send("closeModal");
+  },
 
-    cancel() {
-      this.send("closeModal");
-    }
+  @action
+  close() {
+    this.send("closeModal");
   }
 });

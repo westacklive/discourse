@@ -5,6 +5,7 @@ class Category < ActiveRecord::Base
     'none'
   ]
 
+  # TODO(2020-11-18): remove
   self.ignored_columns = %w{
     suppress_from_latest
   }
@@ -306,7 +307,7 @@ class Category < ActiveRecord::Base
 
     @@cache_text ||= LruRedux::ThreadSafeCache.new(1000)
     @@cache_text.getset(self.description) do
-      text = Nokogiri::HTML.fragment(self.description).text.strip
+      text = Nokogiri::HTML5.fragment(self.description).text.strip
       Rack::Utils.escape_html(text).html_safe
     end
   end
@@ -978,6 +979,7 @@ end
 #  reviewable_by_group_id            :integer
 #  required_tag_group_id             :integer
 #  min_tags_from_required_group      :integer          default(1), not null
+#  read_only_banner                  :string
 #
 # Indexes
 #

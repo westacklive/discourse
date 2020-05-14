@@ -1,3 +1,4 @@
+import I18n from "I18n";
 import { isPresent, isEmpty } from "@ember/utils";
 import { or, and, not, alias } from "@ember/object/computed";
 import EmberObject from "@ember/object";
@@ -21,6 +22,7 @@ import { userPath } from "discourse/lib/url";
 import showModal from "discourse/lib/show-modal";
 import TopicTimer from "discourse/models/topic-timer";
 import { Promise } from "rsvp";
+import { escapeExpression } from "discourse/lib/utilities";
 
 let customPostMessageCallbacks = {};
 
@@ -652,7 +654,7 @@ export default Controller.extend(bufferedProperty("model"), {
       if (!this.currentUser) {
         return bootbox.alert(I18n.t("bookmarks.not_bookmarked"));
       } else if (post) {
-        return post.toggleBookmarkWithReminder();
+        return post.toggleBookmark();
       } else {
         return this.model.toggleBookmark().then(changedIds => {
           if (!changedIds) {
@@ -662,16 +664,6 @@ export default Controller.extend(bufferedProperty("model"), {
             this.appEvents.trigger("post-stream:refresh", { id })
           );
         });
-      }
-    },
-
-    toggleBookmarkWithReminder(post) {
-      if (!this.currentUser) {
-        return bootbox.alert(I18n.t("bookmarks.not_bookmarked"));
-      } else if (post) {
-        return post.toggleBookmarkWithReminder();
-      } else {
-        return this.model.toggleBookmarkWithReminder();
       }
     },
 
@@ -986,7 +978,7 @@ export default Controller.extend(bufferedProperty("model"), {
       }
 
       composerController.open(options).then(() => {
-        const title = Handlebars.escapeExpression(this.model.title);
+        const title = escapeExpression(this.model.title);
         const postUrl = `${location.protocol}//${location.host}${post.url}`;
         const postLink = `[${title}](${postUrl})`;
         const text = `${I18n.t("post.continue_discussion", {

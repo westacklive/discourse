@@ -1,3 +1,4 @@
+import I18n from "I18n";
 import showModal from "discourse/lib/show-modal";
 import { registerTopicFooterButton } from "discourse/lib/register-topic-footer-button";
 import { formattedReminderTime } from "discourse/lib/bookmark";
@@ -84,7 +85,7 @@ export default {
     });
 
     registerTopicFooterButton({
-      dependentKeys: ["topic.bookmarked", "topic.isPrivateMessage"],
+      dependentKeys: ["topic.bookmarked"],
       id: "bookmark",
       icon() {
         if (this.get("topic.bookmark_reminder_at")) {
@@ -109,7 +110,7 @@ export default {
             return I18n.t("bookmarked.help.unbookmark_with_reminder", {
               reminder_at: formattedReminderTime(
                 bookmark_reminder_at,
-                currentUser.resolvedTimezone()
+                currentUser.resolvedTimezone(currentUser)
               )
             });
           }
@@ -120,9 +121,6 @@ export default {
       action: "toggleBookmark",
       dropdown() {
         return this.site.mobileView;
-      },
-      displayed() {
-        return !this.get("topic.isPrivateMessage");
       }
     });
 

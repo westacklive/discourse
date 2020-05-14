@@ -48,7 +48,7 @@ class UsersController < ApplicationController
                                                             :admin_login,
                                                             :confirm_admin]
 
-  after_action :add_noindex_header, only: [:show]
+  after_action :add_noindex_header, only: [:show, :my_redirect]
 
   def index
   end
@@ -477,7 +477,7 @@ class UsersController < ApplicationController
 
     authentication = UserAuthenticator.new(user, session)
 
-    if !authentication.has_authenticator? && !SiteSetting.enable_local_logins
+    if !authentication.has_authenticator? && !SiteSetting.enable_local_logins && !(current_user&.admin? && is_api?)
       return render body: nil, status: :forbidden
     end
 

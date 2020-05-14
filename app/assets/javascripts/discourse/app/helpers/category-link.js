@@ -1,11 +1,13 @@
+import I18n from "I18n";
 import { get } from "@ember/object";
 import { registerUnbound } from "discourse-common/lib/helpers";
 import { isRTL } from "discourse/lib/text-direction";
 import { iconHTML } from "discourse-common/lib/icon-library";
 import Category from "discourse/models/category";
 import Site from "discourse/models/site";
+import { escapeExpression } from "discourse/lib/utilities";
+import { htmlSafe } from "@ember/template";
 
-let escapeExpression = Handlebars.Utils.escapeExpression;
 let _renderer = defaultCategoryLinkRenderer;
 
 export function replaceCategoryLinkRenderer(fn) {
@@ -15,6 +17,12 @@ export function replaceCategoryLinkRenderer(fn) {
 function categoryStripe(color, classes) {
   var style = color ? "style='background-color: #" + color + ";'" : "";
   return "<span class='" + classes + "' " + style + "></span>";
+}
+
+let _extraIconRenderers = [];
+
+export function addExtraIconRenderer(renderer) {
+  _extraIconRenderers.push(renderer);
 }
 
 /**
@@ -79,9 +87,7 @@ export function categoryLinkHTML(category, options) {
       categoryOptions.recursive = true;
     }
   }
-  return new Handlebars.SafeString(
-    categoryBadgeHTML(category, categoryOptions)
-  );
+  return htmlSafe(categoryBadgeHTML(category, categoryOptions));
 }
 
 registerUnbound("category-link", categoryLinkHTML);
@@ -150,12 +156,15 @@ function defaultCategoryLinkRenderer(category, opts) {
   }
 
   if (restricted) {
-    html += `${iconHTML(
-      "lock"
-    )}<span class="category-name" ${categoryDir}>${categoryName}</span>`;
-  } else {
-    html += `<span class="category-name" ${categoryDir}>${categoryName}</span>`;
+    html += iconHTML("lock");
   }
+  _extraIconRenderers.forEach(renderer => {
+    const iconName = renderer(category);
+    if (iconName) {
+      html += iconHTML(iconName);
+    }
+  });
+  html += `<span class="category-name" ${categoryDir}>${categoryName}</span>`;
   html += "</span>";
 
   if (opts.topicCount && categoryStyle !== "box") {

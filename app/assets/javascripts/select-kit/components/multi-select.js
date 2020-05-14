@@ -104,7 +104,7 @@ export default SelectKitComponent.extend({
         }
       });
 
-      return this.selectKit.modifySelection(content || []);
+      return this.selectKit.modifySelection(content);
     } else {
       return this.selectKit.noneItem;
     }
@@ -115,7 +115,7 @@ export default SelectKitComponent.extend({
       event.stopPropagation();
 
       const input = this.getFilterInput();
-      if (input && !input.value.length >= 1) {
+      if (input && input.value.length === 0) {
         const selected = this.element.querySelectorAll(
           ".select-kit-header .choice.select-kit-selected-name"
         );

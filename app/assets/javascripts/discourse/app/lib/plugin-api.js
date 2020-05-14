@@ -5,7 +5,7 @@ import { addPluginOutletDecorator } from "discourse/components/plugin-connector"
 import { addTopicTitleDecorator } from "discourse/components/topic-title";
 import ComposerEditor from "discourse/components/composer-editor";
 import DiscourseBanner from "discourse/components/discourse-banner";
-import { addButton } from "discourse/widgets/post-menu";
+import { addButton, removeButton } from "discourse/widgets/post-menu";
 import { includeAttributes } from "discourse/lib/transform-post";
 import { registerHighlightJSLanguage } from "discourse/lib/highlight-syntax";
 import { addToolbarCallback } from "discourse/components/d-editor";
@@ -48,13 +48,14 @@ import {
   addComposerUploadMarkdownResolver
 } from "discourse/components/composer-editor";
 import { addCategorySortCriteria } from "discourse/components/edit-category-settings";
+import { addExtraIconRenderer } from "discourse/helpers/category-link";
 import { queryRegistry } from "discourse/widgets/widget";
 import Composer from "discourse/models/composer";
 import { on } from "@ember/object/evented";
 import KeyboardShortcuts from "discourse/lib/keyboard-shortcuts";
 
 // If you add any methods to the API ensure you bump up this number
-const PLUGIN_API_VERSION = "0.8.42";
+const PLUGIN_API_VERSION = "0.8.43";
 
 class PluginApi {
   constructor(version, container) {
@@ -267,6 +268,7 @@ class PluginApi {
    *   className   (optional) a css class to apply to the icon
    *   url         (optional) where to link the icon
    *   title       (optional) the tooltip title for the icon on hover
+   *   text        (optional) text to display alongside the emoji or icon
    *
    * ```
    * api.addPosterIcon((cfs, attrs) => {
@@ -399,9 +401,23 @@ class PluginApi {
    *     position: 'first'  // can be `first`, `last` or `second-last-hidden`
    *   };
    * });
+   * ```
    **/
   addPostMenuButton(name, callback) {
     addButton(name, callback);
+  }
+
+  /**
+   * Remove existing button below a post with your plugin.
+   *
+   * Example:
+   *
+   * ```
+   * api.removePostMenuButton('like');
+   * ```
+   **/
+  removePostMenuButton(name) {
+    removeButton(name);
   }
 
   /**
@@ -972,7 +988,7 @@ class PluginApi {
    * Example:
    *
    * function testTagRenderer(tag, params) {
-   *   const visibleName = Handlebars.Utils.escapeExpression(tag);
+   *   const visibleName = escapeExpression(tag);
    *   return `testing: ${visibleName}`;
    * }
    * api.replaceTagRenderer(testTagRenderer);
@@ -1049,6 +1065,22 @@ class PluginApi {
    **/
   decorateTopicTitle(callback) {
     addTopicTitleDecorator(callback);
+  }
+
+  /**
+   * Allows adding icons to the category-link html
+   *
+   * ```
+   * api.addCategoryLinkIcon((category) => {
+   *  if (category.someProperty) {
+        return "eye"
+      }
+   * });
+   * ```
+   *
+   **/
+  addCategoryLinkIcon(renderer) {
+    addExtraIconRenderer(renderer);
   }
 }
 

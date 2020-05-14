@@ -240,7 +240,7 @@ class PostCreator
   end
 
   def self.track_post_stats
-    Rails.env != "test".freeze || @track_post_stats
+    Rails.env != "test" || @track_post_stats
   end
 
   def self.track_post_stats=(val)
@@ -303,7 +303,7 @@ class PostCreator
 
   def draft_key
     @draft_key ||= @opts[:draft_key]
-    @draft_key ||= @topic ? "topic_#{@topic.id}" : "new_topic"
+    @draft_key ||= @topic ? @topic.draft_key : Draft::NEW_TOPIC
   end
 
   def build_post_stats

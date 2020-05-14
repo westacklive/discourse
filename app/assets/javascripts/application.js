@@ -1,8 +1,8 @@
-//= require_tree ./discourse-common
+//= require_tree ./discourse-common/addon
 //= require ./polyfills
 //= require_tree ./select-kit
 //= require ./discourse/app/app
-//= require ./deprecated
+//= require ./app-boot
 
 // Stuff we need to load first
 //= require ./discourse/app/lib/to-markdown
@@ -97,4 +97,5 @@
 //= require_tree ./discourse/app/pre-initializers
 //= require_tree ./discourse/app/initializers
 //= require_tree ./discourse/app/services
+
 //= require_tree ./discourse/app/widgets

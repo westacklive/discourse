@@ -30,15 +30,6 @@ class Plugin::CustomEmoji
   def self.unregister(name, group = Emoji::DEFAULT_GROUP)
     emojis[group].delete(name)
   end
-
-  def self.translations
-    @@translations ||= {}
-  end
-
-  def self.translate(from, to)
-    @@cache_key = Digest::SHA1.hexdigest(cache_key + from)[0..10]
-    translations[from] = to
-  end
 end
 
 class Plugin::Instance
@@ -244,6 +235,16 @@ class Plugin::Instance
     end
   end
 
+  def add_controller_callback(klass_name, callback, &block)
+    reloadable_patch do |plugin|
+      klass = klass_name.to_s.classify.constantize rescue klass_name.to_s.constantize
+
+      klass.public_send(callback) do |controller, action|
+        block.call(controller, action) if plugin.enabled?
+      end
+    end
+  end
+
   # Add a post_custom_fields_whitelister block to the TopicView, respecting if the plugin is enabled
   def topic_view_post_custom_fields_whitelister(&block)
     reloadable_patch do |plugin|
@@ -408,6 +409,15 @@ class Plugin::Instance
     SeedFu.fixture_paths.concat(paths)
   end
 
+  # Applies to all sites in a multisite environment. Block is not called if
+  # plugin is not enabled. Block is called with `user_id` and has to return a
+  # boolean based on whether the given `user_id` should be ignored.
+  def register_ignore_draft_sequence_callback(&block)
+    reloadable_patch do |plugin|
+      ::DraftSequence.plugin_ignore_draft_sequence_callbacks[plugin] = block
+    end
+  end
+
   def listen_for(event_name)
     return unless self.respond_to?(event_name)
     DiscourseEvent.on(event_name, &self.method(event_name))
@@ -446,7 +456,6 @@ class Plugin::Instance
   end
 
   def register_custom_html(hash)
-    DiscoursePluginRegistry.custom_html ||= {}
     DiscoursePluginRegistry.custom_html.merge!(hash)
   end
 
@@ -491,10 +500,6 @@ class Plugin::Instance
     Emoji.clear_cache
   end
 
-  def translate_emoji(from, to)
-    Plugin::CustomEmoji.translate(from, to)
-  end
-
   def automatic_assets
     css = styles.join("\n")
     js = javascripts.join("\n")
@@ -533,6 +538,7 @@ class Plugin::Instance
 
       if transpile_js
         DiscourseJsProcessor.plugin_transpile_paths << root_path.sub(Rails.root.to_s, '').sub(/^\/*/, '')
+        DiscourseJsProcessor.plugin_transpile_paths << admin_path.sub(Rails.root.to_s, '').sub(/^\/*/, '')
       end
     end
 
@@ -638,11 +644,7 @@ class Plugin::Instance
   end
 
   def enabled_site_setting_filter(filter = nil)
-    if filter
-      @enabled_setting_filter = filter
-    else
-      @enabled_setting_filter
-    end
+    STDERR.puts("`enabled_site_setting_filter` is deprecated")
   end
 
   def enabled_site_setting(setting = nil)
@@ -674,8 +676,9 @@ class Plugin::Instance
     if @path
       # Automatically include all ES6 JS and hbs files
       root_path = "#{File.dirname(@path)}/assets/javascripts"
+      admin_path = "#{File.dirname(@path)}/admin/assets/javascripts"
 
-      Dir.glob("#{root_path}/**/*") do |f|
+      Dir.glob(["#{root_path}/**/*", "#{admin_path}/**/*"]) do |f|
         f_str = f.to_s
         if File.directory?(f)
           yield [f, true]

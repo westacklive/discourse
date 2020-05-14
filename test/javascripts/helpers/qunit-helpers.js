@@ -36,6 +36,37 @@ export function logIn() {
   User.resetCurrent(currentUser());
 }
 
+// Note: Only use if `loggedIn: true` has been used in an acceptance test
+export function loggedInUser() {
+  return User.current();
+}
+
+export function fakeTime(timeString, timezone = null, advanceTime = false) {
+  let now = moment.tz(timeString, timezone);
+  return sandbox.useFakeTimers({
+    now: now.valueOf(),
+    shouldAdvanceTime: advanceTime
+  });
+}
+
+export async function acceptanceUseFakeClock(
+  timeString,
+  callback,
+  timezone = null
+) {
+  if (!timezone) {
+    let user = loggedInUser();
+    if (user) {
+      timezone = user.resolvedTimezone(user);
+    } else {
+      timezone = "America/Denver";
+    }
+  }
+  let clock = fakeTime(timeString, timezone, true);
+  await callback();
+  clock.reset();
+}
+
 const Plugin = $.fn.modal;
 const Modal = Plugin.Constructor;
 

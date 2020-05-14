@@ -1,4 +1,7 @@
+import I18n from "I18n";
 import { and } from "@ember/object/computed";
+import { next } from "@ember/runloop";
+import { action } from "@ember/object";
 import { isPresent } from "@ember/utils";
 import Controller from "@ember/controller";
 import { Promise } from "rsvp";
@@ -21,6 +24,8 @@ const GLOBAL_SHORTCUTS_TO_PAUSE = ["c", "r", "l", "d", "t"];
 const START_OF_DAY_HOUR = 8;
 const LATER_TODAY_CUTOFF_HOUR = 17;
 const LATER_TODAY_MAX_HOUR = 18;
+const MOMENT_MONDAY = 1;
+const MOMENT_THURSDAY = 4;
 
 const BOOKMARK_BINDINGS = {
   enter: { handler: "saveAndClose" },
@@ -58,6 +63,8 @@ export default Controller.extend(ModalFunctionality, {
   lastCustomReminderTime: null,
   mouseTrap: null,
   userTimezone: null,
+  showOptions: false,
+  options: null,
 
   onShow() {
     this.setProperties({
@@ -69,9 +76,13 @@ export default Controller.extend(ModalFunctionality, {
       customReminderTime: this._defaultCustomReminderTime(),
       lastCustomReminderDate: null,
       lastCustomReminderTime: null,
-      userTimezone: this.currentUser.resolvedTimezone()
+      userTimezone: this.currentUser.resolvedTimezone(this.currentUser),
+      showOptions: false,
+      options: {},
+      model: this.model || {}
     });
 
+    this._loadBookmarkOptions();
     this._bindKeyboardShortcuts();
     this._loadLastUsedCustomReminderDatetime();
 
@@ -102,6 +113,11 @@ export default Controller.extend(ModalFunctionality, {
   _initializeExistingBookmarkData() {
     if (this._existingBookmarkHasReminder()) {
       let parsedReminderAt = this._parseCustomDateTime(this.model.reminderAt);
+
+      if (parsedReminderAt.isSame(this.laterToday())) {
+        return this.set("selectedReminderType", REMINDER_TYPES.LATER_TODAY);
+      }
+
       this.setProperties({
         customReminderDate: parsedReminderAt.format("YYYY-MM-DD"),
         customReminderTime: parsedReminderAt.format("HH:mm"),
@@ -116,6 +132,21 @@ export default Controller.extend(ModalFunctionality, {
 
   _existingBookmarkHasReminder() {
     return isPresent(this.model) && isPresent(this.model.reminderAt);
+  },
+
+  _loadBookmarkOptions() {
+    this.set(
+      "options.deleteWhenReminderSent",
+      this.model.deleteWhenReminderSent ||
+        localStorage.bookmarkOptionsDeleteWhenReminderSent === "true"
+    );
+
+    // we want to make sure the options panel opens so the user
+    // knows they have set these options previously. run next otherwise
+    // the modal is not visible when it tries to slide down the options
+    if (this.options.deleteWhenReminderSent) {
+      next(() => this.toggleOptionsPanel());
+    }
   },
 
   _loadLastUsedCustomReminderDatetime() {
@@ -169,14 +200,6 @@ export default Controller.extend(ModalFunctionality, {
     return isPresent(id);
   },
 
-  @discourseComputed()
-  showAtDesktop() {
-    return (
-      this.siteSettings.enable_bookmark_at_desktop_reminders &&
-      this.site.mobileView
-    );
-  },
-
   @discourseComputed("selectedReminderType")
   customDateTimeSelected(selectedReminderType) {
     return selectedReminderType === REMINDER_TYPES.CUSTOM;
@@ -200,7 +223,7 @@ export default Controller.extend(ModalFunctionality, {
 
   @discourseComputed()
   showLaterThisWeek() {
-    return this.now().day() < 4; // 4 is Thursday
+    return this.now().day() < MOMENT_THURSDAY;
   },
 
   @discourseComputed("parsedLastCustomReminderDatetime")
@@ -218,7 +241,7 @@ export default Controller.extend(ModalFunctionality, {
   @discourseComputed()
   startNextBusinessWeekFormatted() {
     return this.nextWeek()
-      .day("Monday")
+      .day(MOMENT_MONDAY)
       .format(I18n.t("dates.long_no_year"));
   },
 
@@ -270,6 +293,8 @@ export default Controller.extend(ModalFunctionality, {
       localStorage.lastCustomBookmarkReminderDate = this.customReminderDate;
     }
 
+    localStorage.bookmarkOptionsDeleteWhenReminderSent = this.options.deleteWhenReminderSent;
+
     let reminderType;
     if (this.selectedReminderType === REMINDER_TYPES.NONE) {
       reminderType = null;
@@ -284,7 +309,8 @@ export default Controller.extend(ModalFunctionality, {
       reminder_at: reminderAtISO,
       name: this.model.name,
       post_id: this.model.postId,
-      id: this.model.id
+      id: this.model.id,
+      delete_when_reminder_sent: this.options.deleteWhenReminderSent
     };
 
     if (this._editingExistingBookmark()) {
@@ -296,6 +322,7 @@ export default Controller.extend(ModalFunctionality, {
           this.afterSave({
             reminderAt: reminderAtISO,
             reminderType: this.selectedReminderType,
+            deleteWhenReminderSent: this.options.deleteWhenReminderSent,
             id: this.model.id,
             name: this.model.name
           });
@@ -307,6 +334,7 @@ export default Controller.extend(ModalFunctionality, {
           this.afterSave({
             reminderAt: reminderAtISO,
             reminderType: this.selectedReminderType,
+            deleteWhenReminderSent: this.options.deleteWhenReminderSent,
             id: response.id,
             name: this.model.name
           });
@@ -340,8 +368,6 @@ export default Controller.extend(ModalFunctionality, {
     }
 
     switch (this.selectedReminderType) {
-      case REMINDER_TYPES.AT_DESKTOP:
-        return null;
       case REMINDER_TYPES.LATER_TODAY:
         return this.laterToday();
       case REMINDER_TYPES.NEXT_BUSINESS_DAY:
@@ -351,7 +377,7 @@ export default Controller.extend(ModalFunctionality, {
       case REMINDER_TYPES.NEXT_WEEK:
         return this.nextWeek();
       case REMINDER_TYPES.START_OF_NEXT_BUSINESS_WEEK:
-        return this.nextWeek().day("Monday");
+        return this.nextWeek().day(MOMENT_MONDAY);
       case REMINDER_TYPES.LATER_THIS_WEEK:
         return this.laterThisWeek();
       case REMINDER_TYPES.NEXT_MONTH:
@@ -424,53 +450,70 @@ export default Controller.extend(ModalFunctionality, {
     }
   },
 
-  actions: {
-    saveAndClose() {
-      if (this._saving || this._deleting) {
-        return;
-      }
+  @action
+  toggleOptionsPanel() {
+    if (this.showOptions) {
+      $(".bookmark-options-panel").slideUp("fast");
+    } else {
+      $(".bookmark-options-panel").slideDown("fast");
+    }
+    this.toggleProperty("showOptions");
+  },
 
-      this._saving = true;
-      this._savingBookmarkManually = true;
-      this._saveBookmark()
-        .then(() => this.send("closeModal"))
-        .catch(e => this._handleSaveError(e))
-        .finally(() => (this._saving = false));
-    },
+  @action
+  saveAndClose() {
+    if (this._saving || this._deleting) {
+      return;
+    }
 
-    delete() {
-      this._deleting = true;
-      let deleteAction = () => {
-        this._closeWithoutSaving = true;
-        this._deleteBookmark()
-          .then(() => {
-            this._deleting = false;
-            this.send("closeModal");
-          })
-          .catch(e => this._handleSaveError(e));
-      };
+    this._saving = true;
+    this._savingBookmarkManually = true;
+    return this._saveBookmark()
+      .then(() => this.send("closeModal"))
+      .catch(e => this._handleSaveError(e))
+      .finally(() => (this._saving = false));
+  },
 
-      if (this._existingBookmarkHasReminder()) {
-        bootbox.confirm(I18n.t("bookmarks.confirm_delete"), result => {
-          if (result) {
-            deleteAction();
-          }
-        });
-      } else {
-        deleteAction();
-      }
-    },
-
-    closeWithoutSavingBookmark() {
+  @action
+  delete() {
+    this._deleting = true;
+    let deleteAction = () => {
       this._closeWithoutSaving = true;
-      this.send("closeModal");
-    },
+      this._deleteBookmark()
+        .then(() => {
+          this._deleting = false;
+          this.send("closeModal");
+        })
+        .catch(e => this._handleSaveError(e));
+    };
 
-    selectReminderType(type) {
-      if (type === REMINDER_TYPES.LATER_TODAY && !this.showLaterToday) {
-        return;
-      }
-      this.set("selectedReminderType", type);
+    if (this._existingBookmarkHasReminder()) {
+      bootbox.confirm(I18n.t("bookmarks.confirm_delete"), result => {
+        if (result) {
+          deleteAction();
+        }
+      });
+    } else {
+      deleteAction();
+    }
+  },
+
+  @action
+  closeWithoutSavingBookmark() {
+    this._closeWithoutSaving = true;
+    this.send("closeModal");
+  },
+
+  @action
+  selectReminderType(type) {
+    if (type === REMINDER_TYPES.LATER_TODAY && !this.showLaterToday) {
+      return;
+    }
+
+    this.set("selectedReminderType", type);
+
+    if (type !== REMINDER_TYPES.CUSTOM) {
+      return this.saveAndClose();
     }
   }
 });

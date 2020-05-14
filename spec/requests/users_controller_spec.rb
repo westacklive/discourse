@@ -12,7 +12,7 @@ describe UsersController do
       get '/u/hp.json'
       expect(response.status).to eq(200)
 
-      json = JSON.parse(response.body)
+      json = response.parsed_body
 
       params = {
         email: 'jane@jane.com',
@@ -179,7 +179,7 @@ describe UsersController do
         get "/u/password-reset/#{token}.json"
 
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)["message"]).to eq(I18n.t('password_reset.no_token'))
+        expect(response.parsed_body["message"]).to eq(I18n.t('password_reset.no_token'))
         expect(session[:current_user_id]).to be_blank
       end
     end
@@ -204,7 +204,7 @@ describe UsersController do
         put "/u/password-reset/evil_trout!.json", params: { password: "awesomeSecretPassword" }
 
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)["message"]).to eq(I18n.t('password_reset.no_token'))
+        expect(response.parsed_body["message"]).to eq(I18n.t('password_reset.no_token'))
         expect(session[:current_user_id]).to be_blank
       end
     end
@@ -488,7 +488,7 @@ describe UsersController do
         put "/u/password-reset/#{token}.json", params: { password: '' }
 
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)["errors"]).to be_present
+        expect(response.parsed_body["errors"]).to be_present
         expect(session[:current_user_id]).to be_blank
       end
 
@@ -496,7 +496,7 @@ describe UsersController do
         put "/u/password-reset/#{token}.json", params: { password: ('x' * (User.max_password_length + 1)) }
 
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)["errors"]).to be_present
+        expect(response.parsed_body["errors"]).to be_present
         expect(session[:current_user_id]).to be_blank
       end
 
@@ -504,7 +504,7 @@ describe UsersController do
         put "/u/password-reset/#{token}.json", params: { password: 'ksjafh928r' }
 
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)["errors"]).to be_blank
+        expect(response.parsed_body["errors"]).to be_blank
         expect(session[:current_user_id]).to be_present
       end
 
@@ -512,7 +512,7 @@ describe UsersController do
         SiteSetting.must_approve_users = true
 
         put "/u/password-reset/#{token}.json", params: { password: 'ksjafh928r' }
-        expect(JSON.parse(response.body)["errors"]).to be_blank
+        expect(response.parsed_body["errors"]).to be_blank
         expect(session[:current_user_id]).to be_blank
       end
     end
@@ -585,7 +585,7 @@ describe UsersController do
   describe '#create' do
     def honeypot_magic(params)
       get '/u/hp.json'
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       params[:password_confirmation] = json["value"]
       params[:challenge] = json["challenge"].reverse
       params
@@ -635,13 +635,13 @@ describe UsersController do
 
         post_user(invite_code: "abcd")
         expect(response.status).to eq(200)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json["success"]).to eq(false)
 
         # case insensitive and stripped of leading/ending spaces
         post_user(invite_code: " AbC deF ")
         expect(response.status).to eq(200)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json["success"]).to eq(true)
 
       end
@@ -652,6 +652,30 @@ describe UsersController do
           post_user(timezone: "Australia/Brisbane")
           expect(response.status).to eq(200)
           expect(User.find_by(username: @user.username).user_option.timezone).to eq("Australia/Brisbane")
+        end
+      end
+
+      context "with local logins disabled" do
+        before do
+          SiteSetting.enable_local_logins = false
+          SiteSetting.enable_google_oauth2_logins = true
+        end
+
+        it "blocks registration without authenticator information" do
+          post_user
+          expect(response.status).to eq(403)
+        end
+
+        it "blocks with a regular api key" do
+          api_key = Fabricate(:api_key, user: user)
+          post "/u.json", params: post_user_params, headers: { HTTP_API_KEY: api_key.key }
+          expect(response.status).to eq(403)
+        end
+
+        it "works with an admin api key" do
+          api_key = Fabricate(:api_key, user: Fabricate(:admin))
+          post "/u.json", params: post_user_params, headers: { HTTP_API_KEY: api_key.key }
+          expect(response.status).to eq(200)
         end
       end
     end
@@ -670,7 +694,7 @@ describe UsersController do
         post_user
         expect(response.status).to eq(200)
 
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['success']).to eq(false)
         expect(json['message']).to be_present
       end
@@ -678,7 +702,7 @@ describe UsersController do
       it 'creates a user correctly' do
         post_user
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)['active']).to be_falsey
+        expect(response.parsed_body['active']).to be_falsey
 
         # should save user_created_message in session
         expect(session["user_created_message"]).to be_present
@@ -698,7 +722,7 @@ describe UsersController do
           post_user
           expect(response.status).to eq(200)
 
-          expect(JSON.parse(response.body)['active']).to be_falsey
+          expect(response.parsed_body['active']).to be_falsey
 
           # should save user_created_message in session
           expect(session["user_created_message"]).to be_present
@@ -721,7 +745,7 @@ describe UsersController do
           post_user
           expect(response.status).to eq(200)
 
-          json = JSON.parse(response.body)
+          json = response.parsed_body
           expect(json['success']).to eq(false)
           expect(json['message']).to be_present
         end
@@ -735,7 +759,7 @@ describe UsersController do
           expect(response.status).to eq(200)
           expect(session["user_created_message"]).to be_present
 
-          json = JSON.parse(response.body)
+          json = response.parsed_body
           expect(json['active']).to be_falsey
           expect(json['message']).to eq(I18n.t("login.activate_email", email: post_user_params[:email]))
         end
@@ -746,7 +770,7 @@ describe UsersController do
       it "won't create the user as active" do
         post "/u.json", params: post_user_params.merge(active: true)
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)['active']).to be_falsey
+        expect(response.parsed_body['active']).to be_falsey
       end
 
       context "with a regular api key" do
@@ -758,7 +782,7 @@ describe UsersController do
             params: post_user_params.merge(active: true), headers: { HTTP_API_KEY: api_key.key }
 
           expect(response.status).to eq(200)
-          expect(JSON.parse(response.body)['active']).to be_falsey
+          expect(response.parsed_body['active']).to be_falsey
         end
       end
 
@@ -777,7 +801,7 @@ describe UsersController do
           expect(Jobs::SendSystemMessage.jobs.size).to eq(0)
 
           expect(response.status).to eq(200)
-          json = JSON.parse(response.body)
+          json = response.parsed_body
 
           new_user = User.find(json["user_id"])
           email_token = new_user.email_tokens.active.where(email: new_user.email).first
@@ -798,7 +822,7 @@ describe UsersController do
           post "/u.json", params: post_user_params.merge(active: true), headers: { HTTP_API_KEY: api_key.key }
 
           expect(response.status).to eq(200)
-          json = JSON.parse(response.body)
+          json = response.parsed_body
 
           new_user = User.find(json["user_id"])
           expect(json['active']).to be_truthy
@@ -813,7 +837,7 @@ describe UsersController do
           post "/u.json", params: post_user_params, headers: { HTTP_API_KEY: api_key.key }
 
           expect(response.status).to eq(200)
-          json = JSON.parse(response.body)
+          json = response.parsed_body
 
           new_user = User.find(json["user_id"])
           expect(json['active']).to eq(false)
@@ -826,7 +850,7 @@ describe UsersController do
 
           post "/u.json", params: post_user_params.merge(active: true), headers: { HTTP_API_KEY: api_key.key }
           expect(response.status).to eq(200)
-          expect(JSON.parse(response.body)['active']).to be_falsy
+          expect(response.parsed_body['active']).to be_falsy
         end
 
         it "won't set the new user's locale to the admin's locale" do
@@ -836,7 +860,7 @@ describe UsersController do
           post "/u.json", params: post_user_params.merge(active: true), headers: { HTTP_API_KEY: api_key.key }
           expect(response.status).to eq(200)
 
-          json = JSON.parse(response.body)
+          json = response.parsed_body
           new_user = User.find(json["user_id"])
           expect(new_user.locale).not_to eq("fr")
         end
@@ -849,7 +873,7 @@ describe UsersController do
           post "/u.json", params: post_user_params.merge(active: true), headers: { HTTP_API_KEY: api_key.key }
 
           expect(response.status).to eq(200)
-          json = JSON.parse(response.body)
+          json = response.parsed_body
 
           new_user = User.find(json["user_id"])
           expect(json['active']).to be_truthy
@@ -921,7 +945,7 @@ describe UsersController do
         User.any_instance.expects(:enqueue_welcome_message)
         post_user
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)['message']).to eq(
+        expect(response.parsed_body['message']).to eq(
           I18n.t 'login.active'
         )
       end
@@ -937,7 +961,7 @@ describe UsersController do
         User.any_instance.expects(:enqueue_welcome_message)
         post_user
         expect(response.status).to eq(200)
-        expect(JSON.parse(response.body)['active']).to be_truthy
+        expect(response.parsed_body['active']).to be_truthy
       end
 
       it 'doesn\'t succeed when new registrations are disabled' do
@@ -946,7 +970,7 @@ describe UsersController do
         post_user
         expect(response.status).to eq(200)
 
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['success']).to eq(false)
         expect(json['message']).to be_present
       end
@@ -995,7 +1019,7 @@ describe UsersController do
           }
 
           expect(response.status).to eq(200)
-          json = JSON.parse(response.body)
+          json = response.parsed_body
           expect(json['success']).to eq(false)
           expect(json['message']).to be_present
         end
@@ -1009,7 +1033,7 @@ describe UsersController do
           }
 
           expect(response.status).to eq(200)
-          json = JSON.parse(response.body)
+          json = response.parsed_body
           expect(json['success']).to eq(true)
         end
       end
@@ -1018,7 +1042,7 @@ describe UsersController do
     it "creates user successfully but doesn't activate the account" do
       post_user
       expect(response.status).to eq(200)
-      json = JSON::parse(response.body)
+      json = response.parsed_body
       expect(json["success"]).to eq(true)
       expect(User.find_by(username: @user.username).active).to eq(false)
     end
@@ -1033,7 +1057,7 @@ describe UsersController do
 
         expect(response.status).to eq(200)
 
-        json = JSON::parse(response.body)
+        json = response.parsed_body
         expect(json["success"]).to eq(true)
 
         # should not change the session
@@ -1079,7 +1103,7 @@ describe UsersController do
 
       it 'should report failed' do
         post "/u.json", params: create_params
-        json = JSON::parse(response.body)
+        json = response.parsed_body
         expect(json["success"]).not_to eq(true)
 
         # should not change the session
@@ -1229,7 +1253,7 @@ describe UsersController do
         )
 
         expect(response.status).to eq(200)
-        result = ::JSON.parse(response.body)
+        result = response.parsed_body
         expect(result["success"]).to eq(true)
 
         created_user = User.find_by_email(staged.email)
@@ -1285,7 +1309,7 @@ describe UsersController do
 
         expect(response.status).to eq(422)
 
-        body = JSON.parse(response.body)
+        body = response.parsed_body
 
         expect(body['errors'].first).to include(I18n.t(
           'user.username.short', min: User.username_length.begin
@@ -1304,7 +1328,7 @@ describe UsersController do
       it 'raises an error when the username clashes with an existing user route' do
         put "/u/#{user.username}/preferences/username.json", params: { new_username: 'account-created' }
 
-        body = JSON.parse(response.body)
+        body = response.parsed_body
 
         expect(body['errors'].first).to include(I18n.t('login.reserved_username'))
       end
@@ -1313,7 +1337,7 @@ describe UsersController do
         SiteSetting.reserved_usernames = 'reserved'
 
         put "/u/#{user.username}/preferences/username.json", params: { new_username: 'reserved' }
-        body = JSON.parse(response.body)
+        body = response.parsed_body
 
         expect(body['errors'].first).to include(I18n.t('login.reserved_username'))
       end
@@ -1346,7 +1370,7 @@ describe UsersController do
       it 'should return a JSON response with the updated username' do
         put "/u/#{user.username}/preferences/username.json", params: { new_username: new_username }
 
-        expect(::JSON.parse(response.body)['username']).to eq(new_username)
+        expect(response.parsed_body['username']).to eq(new_username)
       end
 
       it 'should respond with proper error message if sso_overrides_username is enabled' do
@@ -1359,7 +1383,7 @@ describe UsersController do
         put "/u/#{user.username}/preferences/username.json", params: { new_username: new_username }
 
         expect(response.status).to eq(422)
-        expect(::JSON.parse(response.body)['errors'].first).to include(I18n.t('errors.messages.sso_overrides_username'))
+        expect(response.parsed_body['errors'].first).to include(I18n.t('errors.messages.sso_overrides_username'))
       end
     end
   end
@@ -1373,15 +1397,15 @@ describe UsersController do
     shared_examples 'when username is unavailable' do
       it 'should return available as false in the JSON and return a suggested username' do
         expect(response.status).to eq(200)
-        expect(::JSON.parse(response.body)['available']).to eq(false)
-        expect(::JSON.parse(response.body)['suggestion']).to be_present
+        expect(response.parsed_body['available']).to eq(false)
+        expect(response.parsed_body['suggestion']).to be_present
       end
     end
 
     shared_examples 'when username is available' do
       it 'should return available in the JSON' do
         expect(response.status).to eq(200)
-        expect(::JSON.parse(response.body)['available']).to eq(true)
+        expect(response.parsed_body['available']).to eq(true)
       end
     end
 
@@ -1408,8 +1432,8 @@ describe UsersController do
     shared_examples 'checking an invalid username' do
       it 'should not return an available key but should return an error message' do
         expect(response.status).to eq(200)
-        expect(::JSON.parse(response.body)['available']).to eq(nil)
-        expect(::JSON.parse(response.body)['errors']).to be_present
+        expect(response.parsed_body['available']).to eq(nil)
+        expect(response.parsed_body['errors']).to be_present
       end
     end
 
@@ -1421,7 +1445,7 @@ describe UsersController do
 
       it 'should return the invalid characters message' do
         expect(response.status).to eq(200)
-        expect(::JSON.parse(response.body)['errors']).to include(I18n.t(:'user.username.characters'))
+        expect(response.parsed_body['errors']).to include(I18n.t(:'user.username.characters'))
       end
     end
 
@@ -1433,7 +1457,7 @@ describe UsersController do
 
       it 'should return the "too long" message' do
         expect(response.status).to eq(200)
-        expect(::JSON.parse(response.body)['errors']).to include(I18n.t(:'user.username.long', max: User.username_length.end))
+        expect(response.parsed_body['errors']).to include(I18n.t(:'user.username.long', max: User.username_length.end))
       end
     end
 
@@ -1485,7 +1509,7 @@ describe UsersController do
       get "/u/#{user.username}/invited_count.json"
       expect(response.status).to eq(200)
 
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json).to be_present
       expect(json['counts']).to be_present
     end
@@ -1518,14 +1542,14 @@ describe UsersController do
       get "/u/#{inviter.username}/invited.json", params: { search: 'billybob' }
       expect(response.status).to eq(200)
 
-      invites = JSON.parse(response.body)['invites']
+      invites = response.parsed_body['invites']
       expect(invites.size).to eq(1)
       expect(invites.first).to include('email' => 'billybob@example.com')
 
       get "/u/#{inviter.username}/invited.json", params: { search: invitee.username }
       expect(response.status).to eq(200)
 
-      invites = JSON.parse(response.body)['invites']
+      invites = response.parsed_body['invites']
       expect(invites.size).to eq(2)
       expect(invites[0]['email']).to be_present
     end
@@ -1541,13 +1565,13 @@ describe UsersController do
       get "/u/#{inviter.username}/invited.json", params: { search: 'billybob' }
       expect(response.status).to eq(200)
 
-      invites = JSON.parse(response.body)['invites']
+      invites = response.parsed_body['invites']
       expect(invites.size).to eq(0)
 
       get "/u/#{inviter.username}/invited.json", params: { search: invitee.username }
       expect(response.status).to eq(200)
 
-      invites = JSON.parse(response.body)['invites']
+      invites = response.parsed_body['invites']
       expect(invites.size).to eq(2)
       expect(invites[0]['email']).to be_blank
     end
@@ -1563,7 +1587,7 @@ describe UsersController do
       get "/u/#{inviter.username}/invited.json", params: { search: 'billybob' }
       expect(response.status).to eq(200)
 
-      invites = JSON.parse(response.body)['invites']
+      invites = response.parsed_body['invites']
       expect(invites.size).to eq(1)
       expect(invites[0]['email']).to be_present
     end
@@ -1589,7 +1613,7 @@ describe UsersController do
           get "/u/#{inviter.username}/invited.json"
           expect(response.status).to eq(200)
 
-          invites = JSON.parse(response.body)['invites']
+          invites = response.parsed_body['invites']
           expect(invites.size).to eq(1)
           expect(invites.first).to include('email' => invite.email)
         end
@@ -1607,7 +1631,7 @@ describe UsersController do
             get "/u/#{inviter.username}/invited/pending.json"
             expect(response.status).to eq(200)
 
-            invites = JSON.parse(response.body)['invites']
+            invites = response.parsed_body['invites']
             expect(invites.size).to eq(1)
             expect(invites.first).to include("email" => invite.email)
           end
@@ -1640,7 +1664,7 @@ describe UsersController do
           get "/u/#{inviter.username}/invited.json"
           expect(response.status).to eq(200)
 
-          invites = JSON.parse(response.body)['invites']
+          invites = response.parsed_body['invites']
           expect(invites.size).to eq(1)
           expect(invites.first).to include('email' => invite.email)
         end
@@ -1907,7 +1931,7 @@ describe UsersController do
         it 'returns user JSON' do
           put "/u/#{user.username}.json"
 
-          json = JSON.parse(response.body)
+          json = response.parsed_body
           expect(json['user']['id']).to eq user.id
         end
       end
@@ -2011,7 +2035,7 @@ describe UsersController do
           post "/u/action/send_activation_email.json", params: { username: user.username }
 
           expect(response.status).to eq(409)
-          expect(JSON.parse(response.body)['errors']).to include(I18n.t(
+          expect(response.parsed_body['errors']).to include(I18n.t(
             'activation.activated'
           ))
           expect(session[SessionController::ACTIVATE_USER_KEY]).to eq(nil)
@@ -2409,6 +2433,7 @@ describe UsersController do
     it "redirects if the user is not logged in" do
       get "/my/wat.json"
       expect(response).to be_redirect
+      expect(response.headers['X-Robots-Tag']).to eq('noindex')
     end
 
     context "when the user is logged in" do
@@ -2453,7 +2478,7 @@ describe UsersController do
         get "/u/#{user.username}/emails.json"
 
         expect(response.status).to eq(200)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json["email"]).to eq(user.email)
         expect(json["secondary_emails"]).to eq(user.secondary_emails)
         expect(json["associated_accounts"]).to eq([])
@@ -2466,7 +2491,7 @@ describe UsersController do
         get "/u/#{user.username}/emails.json"
 
         expect(response.status).to eq(200)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json["email"]).to eq(user.email)
         expect(json["secondary_emails"]).to eq(user.secondary_emails)
         expect(json["associated_accounts"]).to eq([])
@@ -2479,7 +2504,7 @@ describe UsersController do
         get "/u/#{inactive_user.username}/emails.json"
 
         expect(response.status).to eq(200)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json["email"]).to eq(inactive_user.email)
         expect(json["secondary_emails"]).to eq(inactive_user.secondary_emails)
         expect(json["associated_accounts"]).to eq([])
@@ -2501,7 +2526,7 @@ describe UsersController do
       get "/u/is_local_username.json", params: { username: user.username }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["valid"][0]).to eq(user.username)
     end
 
@@ -2509,7 +2534,7 @@ describe UsersController do
       sign_in(user)
       get "/u/is_local_username.json", params: { username: group.name }
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["valid_groups"]).to include(group.name)
       expect(json["mentionable_groups"].find { |g| g['name'] == group.name }).to be_present
     end
@@ -2518,7 +2543,7 @@ describe UsersController do
       sign_in(user)
       get "/u/is_local_username.json", params: { username: unmentionable.name }
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["valid_groups"]).to include(unmentionable.name)
       expect(json["mentionable_groups"]).to be_blank
     end
@@ -2527,7 +2552,7 @@ describe UsersController do
       get "/u/is_local_username.json", params: { usernames: [user.username, "system"] }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["valid"].size).to eq(2)
     end
 
@@ -2537,7 +2562,7 @@ describe UsersController do
       get "/u/is_local_username.json", params: { usernames: [staged.username] }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["valid"].size).to eq(0)
     end
 
@@ -2549,7 +2574,7 @@ describe UsersController do
       }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["cannot_see"].size).to eq(1)
     end
 
@@ -2561,7 +2586,7 @@ describe UsersController do
       }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["cannot_see"].size).to eq(0)
     end
 
@@ -2573,7 +2598,7 @@ describe UsersController do
       }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["cannot_see"].size).to eq(1)
     end
 
@@ -2585,7 +2610,7 @@ describe UsersController do
       }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["cannot_see"].size).to eq(0)
     end
   end
@@ -2608,7 +2633,7 @@ describe UsersController do
         get "/u/#{user.username}/topic-tracking-state.json"
 
         expect(response.status).to eq(200)
-        states = JSON.parse(response.body)
+        states = response.parsed_body
         expect(states[0]["topic_id"]).to eq(topic.id)
       end
     end
@@ -2621,7 +2646,7 @@ describe UsersController do
 
       get "/u/#{user.username_lower}/summary.json"
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
 
       expect(json["user_summary"]["topic_count"]).to eq(1)
       expect(json["user_summary"]["post_count"]).to eq(0)
@@ -2879,7 +2904,7 @@ describe UsersController do
       it "returns success" do
         get "/u/#{user.username}.json"
         expect(response.status).to eq(200)
-        parsed = JSON.parse(response.body)["user"]
+        parsed = response.parsed_body["user"]
 
         expect(parsed['username']).to eq(user.username)
         expect(parsed["profile_hidden"]).to be_blank
@@ -2891,7 +2916,7 @@ describe UsersController do
 
         get "/u/#{user.username}.json"
         expect(response.status).to eq(200)
-        parsed = JSON.parse(response.body)["user"]
+        parsed = response.parsed_body["user"]
 
         expect(parsed["username"]).to eq(user.username)
         expect(parsed["profile_hidden"]).to eq(true)
@@ -2932,7 +2957,7 @@ describe UsersController do
         expect(response.status).to eq(200)
         expect(response.headers['X-Robots-Tag']).to eq('noindex')
 
-        json = JSON.parse(response.body)
+        json = response.parsed_body
 
         expect(json["user"]["has_title_badges"]).to eq(false)
       end
@@ -2986,7 +3011,7 @@ describe UsersController do
         it "returns fetch for a matching external_id" do
           get "/u/by-external/997.json"
           expect(response.status).to eq(200)
-          expect(JSON.parse(response.body)["user"]["username"]).to eq(user.username)
+          expect(response.parsed_body["user"]["username"]).to eq(user.username)
         end
 
         it "returns not found when external_id doesn't match" do
@@ -3008,7 +3033,7 @@ describe UsersController do
 
         it "includes only visible posts" do
           get "/u/#{admin.username}.json", params: { include_post_count_for: topic.id }
-          topic_post_count = JSON.parse(response.body).dig("user", "topic_post_count")
+          topic_post_count = response.parsed_body.dig("user", "topic_post_count")
           expect(topic_post_count[topic.id.to_s]).to eq(1)
         end
 
@@ -3016,7 +3041,7 @@ describe UsersController do
           sign_in(admin)
 
           get "/u/#{admin.username}.json", params: { include_post_count_for: topic.id }
-          topic_post_count = JSON.parse(response.body).dig("user", "topic_post_count")
+          topic_post_count = response.parsed_body.dig("user", "topic_post_count")
           expect(topic_post_count[topic.id.to_s]).to eq(2)
         end
       end
@@ -3050,7 +3075,7 @@ describe UsersController do
       it "returns success" do
         get "/u/#{user.username}/card.json"
         expect(response.status).to eq(200)
-        parsed = JSON.parse(response.body)["user"]
+        parsed = response.parsed_body["user"]
 
         expect(parsed["username"]).to eq(user.username)
         expect(parsed["profile_hidden"]).to be_blank
@@ -3075,7 +3100,7 @@ describe UsersController do
         get "/u/#{user.username}/card.json"
         expect(response.status).to eq(200)
 
-        json = JSON.parse(response.body)
+        json = response.parsed_body
 
         expect(json["user"]["associated_accounts"]).to eq(nil) # Not serialized in card
         expect(json["user"]["username"]).to eq(user.username)
@@ -3101,7 +3126,7 @@ describe UsersController do
     it "returns success" do
       get "/user-cards.json?user_ids=#{user.id},#{user2.id}"
       expect(response.status).to eq(200)
-      parsed = JSON.parse(response.body)["users"]
+      parsed = response.parsed_body["users"]
 
       expect(parsed.map { |u| u["username"] }).to contain_exactly(user.username, user2.username)
     end
@@ -3116,7 +3141,7 @@ describe UsersController do
       user2.user_option.update(hide_profile_and_presence: true)
       get "/user-cards.json?user_ids=#{user.id},#{user2.id}"
       expect(response.status).to eq(200)
-      parsed = JSON.parse(response.body)["users"]
+      parsed = response.parsed_body["users"]
 
       expect(parsed.map { |u| u["username"] }).to contain_exactly(user.username)
     end
@@ -3197,14 +3222,14 @@ describe UsersController do
     it "searches when provided the term only" do
       get "/u/search/users.json", params: { term: user.name.split(" ").last }
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["users"].map { |u| u["username"] }).to include(user.username)
     end
 
     it "searches when provided the topic only" do
       get "/u/search/users.json", params: { topic_id: topic.id }
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["users"].map { |u| u["username"] }).to include(user.username)
     end
 
@@ -3214,7 +3239,7 @@ describe UsersController do
       }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["users"].map { |u| u["username"] }).to include(user.username)
     end
 
@@ -3238,7 +3263,7 @@ describe UsersController do
       }
 
       expect(response.status).to eq(200)
-      json = JSON.parse(response.body)
+      json = response.parsed_body
       expect(json["users"].map { |u| u["username"] }).to_not include(user.username)
       expect(json["users"].map { |u| u["username"] }).to include(privileged_user.username)
     end
@@ -3259,7 +3284,7 @@ describe UsersController do
 
       it "returns names" do
         get "/u/search/users.json", params: { term: user.name }
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json["users"].map { |u| u["name"] }).to include(user.name)
       end
     end
@@ -3271,7 +3296,7 @@ describe UsersController do
 
       it "returns names" do
         get "/u/search/users.json", params: { term: user.name }
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json["users"].map { |u| u["name"] }).not_to include(user.name)
       end
     end
@@ -3323,7 +3348,7 @@ describe UsersController do
 
           expect(response.status).to eq(200)
 
-          groups = JSON.parse(response.body)["groups"]
+          groups = response.parsed_body["groups"]
           expect(groups).to eq(nil)
         end
 
@@ -3332,7 +3357,7 @@ describe UsersController do
 
           expect(response.status).to eq(200)
 
-          groups = JSON.parse(response.body)["groups"]
+          groups = response.parsed_body["groups"]
 
           expect(groups.map { |group| group['name'] })
             .to_not include(private_group.name)
@@ -3346,7 +3371,7 @@ describe UsersController do
           }
 
           expect(response.status).to eq(200)
-          expect(JSON.parse(response.body)).not_to have_key(:groups)
+          expect(response.parsed_body).not_to have_key(:groups)
         end
 
         it "searches for messageable groups" do
@@ -3358,7 +3383,7 @@ describe UsersController do
 
           expect(response.status).to eq(200)
 
-          expect(JSON.parse(response.body)["groups"].map { |group| group['name'] })
+          expect(response.parsed_body["groups"].map { |group| group['name'] })
             .to contain_exactly(messageable_group.name, Group.find(Group::AUTO_GROUPS[:moderators]).name)
         end
 
@@ -3371,7 +3396,7 @@ describe UsersController do
 
           expect(response.status).to eq(200)
 
-          groups = JSON.parse(response.body)["groups"]
+          groups = response.parsed_body["groups"]
 
           expect(groups.map { |group| group['name'] })
             .to contain_exactly(mentionable_group.name, mentionable_group_2.name)
@@ -3387,7 +3412,7 @@ describe UsersController do
           }
 
           expect(response.status).to eq(200)
-          expect(JSON.parse(response.body)).not_to have_key(:groups)
+          expect(response.parsed_body).not_to have_key(:groups)
 
           get "/u/search/users.json", params: {
             include_mentionable_groups: 'false',
@@ -3396,7 +3421,7 @@ describe UsersController do
           }
 
           expect(response.status).to eq(200)
-          expect(JSON.parse(response.body)).not_to have_key(:groups)
+          expect(response.parsed_body).not_to have_key(:groups)
 
           get "/u/search/users.json", params: {
             include_messageable_groups: 'false',
@@ -3405,7 +3430,7 @@ describe UsersController do
           }
 
           expect(response.status).to eq(200)
-          expect(JSON.parse(response.body)).not_to have_key(:groups)
+          expect(response.parsed_body).not_to have_key(:groups)
         end
       end
 
@@ -3453,7 +3478,7 @@ describe UsersController do
         end
 
         def users_found
-          JSON.parse(response.body)['users'].map { |u| u['username'] }
+          response.parsed_body['users'].map { |u| u['username'] }
         end
       end
     end
@@ -3481,7 +3506,7 @@ describe UsersController do
       post "/u/email-login.json", params: { login: user.email }
 
       expect(response.status).to eq(200)
-      expect(JSON.parse(response.body)['user_found']).to eq(true)
+      expect(response.parsed_body['user_found']).to eq(true)
 
       job_args = Jobs::CriticalUserEmail.jobs.last["args"].first
 
@@ -3506,7 +3531,7 @@ describe UsersController do
         post "/u/email-login.json", params: { login: '@random' }
 
         expect(response.status).to eq(200)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json['user_found']).to eq(false)
         expect(json['hide_taken']).to eq(false)
         expect(Jobs::CriticalUserEmail.jobs).to eq([])
@@ -3519,7 +3544,7 @@ describe UsersController do
         post "/u/email-login.json", params: { login: user.email }
 
         expect(response.status).to eq(200)
-        json = JSON.parse(response.body)
+        json = response.parsed_body
         expect(json.has_key?('user_found')).to eq(false)
         expect(json['hide_taken']).to eq(true)
       end
@@ -3586,7 +3611,7 @@ describe UsersController do
 
           expect(response.status).to eq(200)
 
-          response_body = JSON.parse(response.body)
+          response_body = response.parsed_body
 
           expect(response_body['key']).to be_present
           expect(response_body['qr']).to be_present
@@ -3622,7 +3647,7 @@ describe UsersController do
         post "/users/enable_second_factor_totp.json", params: { name: "test", second_factor_token: "123456" }
       end
       it "shows a helpful error message to the user" do
-        expect(JSON.parse(response.body)['error']).to eq(I18n.t("login.invalid_second_factor_code"))
+        expect(response.parsed_body['error']).to eq(I18n.t("login.invalid_second_factor_code"))
       end
     end
 
@@ -3632,7 +3657,7 @@ describe UsersController do
         post "/users/enable_second_factor_totp.json", params: { second_factor_token: "123456" }
       end
       it "shows a helpful error message to the user" do
-        expect(JSON.parse(response.body)['error']).to eq(I18n.t("login.missing_second_factor_name"))
+        expect(response.parsed_body['error']).to eq(I18n.t("login.missing_second_factor_name"))
       end
     end
 
@@ -3642,7 +3667,7 @@ describe UsersController do
         post "/users/enable_second_factor_totp.json", params: { name: "test" }
       end
       it "shows a helpful error message to the user" do
-        expect(JSON.parse(response.body)['error']).to eq(I18n.t("login.missing_second_factor_code"))
+        expect(response.parsed_body['error']).to eq(I18n.t("login.missing_second_factor_code"))
       end
     end
   end
@@ -3789,7 +3814,7 @@ describe UsersController do
 
           expect(response.status).to eq(200)
 
-          response_body = JSON.parse(response.body)
+          response_body = response.parsed_body
 
           # we use SecureRandom.hex(16) for backup codes, ensure this continues to be the case
           expect(response_body['backup_codes'].map(&:length)).to eq([32] * 10)
@@ -3802,7 +3827,7 @@ describe UsersController do
     it "stores the challenge in the session and returns challenge data, user id, and supported algorithms" do
       create_second_factor_security_key
       secure_session = read_secure_session
-      response_parsed = JSON.parse(response.body)
+      response_parsed = response.parsed_body
       expect(response_parsed["challenge"]).to eq(
         Webauthn.challenge(user, secure_session)
       )
@@ -3825,7 +3850,7 @@ describe UsersController do
 
       it "returns those existing active credentials" do
         create_second_factor_security_key
-        response_parsed = JSON.parse(response.body)
+        response_parsed = response.parsed_body
         expect(response_parsed["existing_active_credential_ids"]).to eq(
           [user_security_key.credential_id]
         )
@@ -3838,7 +3863,7 @@ describe UsersController do
       it "creates a security key for the user" do
         simulate_localhost_webauthn_challenge
         create_second_factor_security_key
-        response_parsed = JSON.parse(response.body)
+        response_parsed = response.parsed_body
 
         post "/u/register_second_factor_security_key.json", params: valid_security_key_create_post_data
 
@@ -3852,7 +3877,7 @@ describe UsersController do
       it "shows a security key error and does not create a key" do
         stub_as_dev_localhost
         create_second_factor_security_key
-        response_parsed = JSON.parse(response.body)
+        response_parsed = response.parsed_body
 
         post "/u/register_second_factor_security_key.json", params: {
           id: "bad id",
@@ -3864,7 +3889,7 @@ describe UsersController do
         }
 
         expect(user.security_keys.count).to eq(0)
-        expect(JSON.parse(response.body)["error"]).to eq(I18n.t("webauthn.validation.invalid_type_error"))
+        expect(response.parsed_body["error"]).to eq(I18n.t("webauthn.validation.invalid_type_error"))
       end
     end
   end
@@ -4058,7 +4083,7 @@ describe UsersController do
 
         it 'returns password required response' do
           expect(response.status).to eq(200)
-          response_body = JSON.parse(response.body)
+          response_body = response.parsed_body
           expect(response_body['password_required']).to eq(true)
         end
       end
@@ -4076,7 +4101,7 @@ describe UsersController do
             post "/u/second_factors.json", params: { password: password }
 
             expect(response.status).to eq(200)
-            response_body = JSON.parse(response.body)
+            response_body = response.parsed_body
             expect(response_body['totps'].map { |second_factor| second_factor['id'] }).to include(totp_second_factor.id)
             expect(response_body['security_keys'].map { |second_factor| second_factor['id'] }).to include(security_key_second_factor.id)
           end
@@ -4089,7 +4114,7 @@ describe UsersController do
 
             post "/u/second_factors.json", params: { password: password }
 
-            response_body = JSON.parse(response.body)
+            response_body = response.parsed_body
             expect(response_body['error']).to eq(
               I18n.t("login.incorrect_password")
             )
@@ -4213,7 +4238,7 @@ describe UsersController do
       sign_in(user)
       get "/u/#{user.username}/bookmarks.json"
       expect(response.status).to eq(200)
-      expect(JSON.parse(response.body)['user_bookmark_list']['bookmarks'].map { |b| b['id'] }).to match_array([bookmark1.id, bookmark2.id])
+      expect(response.parsed_body['user_bookmark_list']['bookmarks'].map { |b| b['id'] }).to match_array([bookmark1.id, bookmark2.id])
     end
 
     it "does not show another user's bookmarks" do

@@ -127,7 +127,10 @@ class User < ActiveRecord::Base
   after_create :set_default_categories_preferences
   after_create :set_default_tags_preferences
 
-  after_update :trigger_user_updated_event, if: :saved_change_to_uploaded_avatar_id?
+  after_update :trigger_user_updated_event, if: Proc.new {
+    self.human? && self.saved_change_to_uploaded_avatar_id?
+  }
+
   after_update :trigger_user_automatic_group_refresh, if: :saved_change_to_staged?
 
   before_save :update_usernames
@@ -352,7 +355,7 @@ class User < ActiveRecord::Base
   end
 
   EMAIL = %r{([^@]+)@([^\.]+)}
-  FROM_STAGED = "from_staged".freeze
+  FROM_STAGED = "from_staged"
 
   def self.new_from_params(params)
     user = User.new
@@ -598,7 +601,7 @@ class User < ActiveRecord::Base
     notification = notifications.visible.order('notifications.created_at desc').first
     json = NotificationSerializer.new(notification).as_json if notification
 
-    sql = (<<~SQL).freeze
+    sql = (<<~SQL)
        SELECT * FROM (
          SELECT n.id, n.read FROM notifications n
          LEFT JOIN topics t ON n.topic_id = t.id

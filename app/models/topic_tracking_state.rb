@@ -10,9 +10,9 @@ class TopicTrackingState
   include ActiveModel::SerializerSupport
 
   CHANNEL = "/user-tracking"
-  UNREAD_MESSAGE_TYPE = "unread".freeze
-  LATEST_MESSAGE_TYPE = "latest".freeze
-  MUTED_MESSAGE_TYPE = "muted".freeze
+  UNREAD_MESSAGE_TYPE = "unread"
+  LATEST_MESSAGE_TYPE = "latest"
+  MUTED_MESSAGE_TYPE = "muted"
 
   attr_accessor :user_id,
                 :topic_id,
@@ -72,8 +72,8 @@ class TopicTrackingState
     "/unread/#{user_id}"
   end
 
-  def self.publish_muted(post)
-    user_ids = post.topic.topic_users
+  def self.publish_muted(topic)
+    user_ids = topic.topic_users
       .where(notification_level: NotificationLevels.all[:muted])
       .joins(:user)
       .where("users.last_seen_at > ?", 7.days.ago)
@@ -82,7 +82,7 @@ class TopicTrackingState
       .pluck(:user_id)
     return if user_ids.blank?
     message = {
-      topic_id: post.topic_id,
+      topic_id: topic.id,
       message_type: MUTED_MESSAGE_TYPE,
     }
     MessageBus.publish("/latest", message.as_json, user_ids: user_ids)
@@ -195,6 +195,8 @@ class TopicTrackingState
     #
     # This code needs to be VERY efficient as it is triggered via the message bus and may steal
     #  cycles from usual requests
+    tag_ids = muted_tag_ids(user)
+
     sql = +report_raw_sql(
       topic_id: topic_id,
       skip_unread: true,
@@ -202,7 +204,7 @@ class TopicTrackingState
       staff: user.staff?,
       admin: user.admin?,
       user: user,
-      muted_tag_ids: muted_tag_ids(user)
+      muted_tag_ids: tag_ids
     )
 
     sql << "\nUNION ALL\n\n"
@@ -215,7 +217,7 @@ class TopicTrackingState
       filter_old_unread: true,
       admin: user.admin?,
       user: user,
-      muted_tag_ids: muted_tag_ids(user)
+      muted_tag_ids: tag_ids
     )
 
     DB.query(

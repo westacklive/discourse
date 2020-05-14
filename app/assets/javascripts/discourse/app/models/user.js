@@ -1,3 +1,4 @@
+import I18n from "I18n";
 import { A } from "@ember/array";
 import { isEmpty } from "@ember/utils";
 import { gt, equal, or } from "@ember/object/computed";
@@ -18,7 +19,7 @@ import UserAction from "discourse/models/user-action";
 import UserDraftsStream from "discourse/models/user-drafts-stream";
 import Group from "discourse/models/group";
 import { emojiUnescape } from "discourse/lib/text";
-import PreloadStore from "preload-store";
+import PreloadStore from "discourse/lib/preload-store";
 import { defaultHomepage } from "discourse/lib/utilities";
 import { userPath } from "discourse/lib/url";
 import Category from "discourse/models/category";
@@ -26,6 +27,7 @@ import { Promise } from "rsvp";
 import deprecated from "discourse-common/lib/deprecated";
 import Site from "discourse/models/site";
 import { NotificationLevels } from "discourse/lib/notification-levels";
+import { escapeExpression } from "discourse/lib/utilities";
 
 export const SECOND_FACTOR_METHODS = {
   TOTP: 1,
@@ -483,7 +485,7 @@ const User = RestModel.extend({
           return;
         if (!this.get("stream.filter") && !this.inAllStream(ua)) return;
 
-        ua.title = emojiUnescape(Handlebars.Utils.escapeExpression(ua.title));
+        ua.title = emojiUnescape(escapeExpression(ua.title));
         const action = UserAction.collapseStream([UserAction.create(ua)]);
         stream.set("itemsLoaded", stream.get("itemsLoaded") + 1);
         stream.get("content").insertAt(0, action[0]);
@@ -810,7 +812,7 @@ const User = RestModel.extend({
       .sort()
       .map(title => {
         return {
-          name: Ember.Handlebars.Utils.escapeExpression(title),
+          name: escapeExpression(title),
           id: title
         };
       });
@@ -848,23 +850,34 @@ const User = RestModel.extend({
     );
   },
 
-  resolvedTimezone() {
-    if (this._timezone) {
+  resolvedTimezone(currentUser) {
+    if (this.hasSavedTimezone()) {
       return this._timezone;
     }
 
-    this.changeTimezone(moment.tz.guess());
-    ajax(userPath(this.username + ".json"), {
-      type: "PUT",
-      dataType: "json",
-      data: { timezone: this._timezone }
-    });
+    // only change the timezone and save it if we are
+    // looking at our own user
+    if (currentUser.id === this.id) {
+      this.changeTimezone(moment.tz.guess());
+      ajax(userPath(this.username + ".json"), {
+        type: "PUT",
+        dataType: "json",
+        data: { timezone: this._timezone }
+      });
+    }
 
     return this._timezone;
   },
 
   changeTimezone(tz) {
     this._timezone = tz;
+  },
+
+  hasSavedTimezone() {
+    if (this._timezone) {
+      return true;
+    }
+    return false;
   },
 
   calculateMutedIds(notificationLevel, id, type) {
@@ -978,18 +991,20 @@ User.reopenClass(Singleton, {
   }
 });
 
-let warned = false;
-Object.defineProperty(Discourse, "User", {
-  get() {
-    if (!warned) {
-      deprecated("Import the User class instead of using User", {
-        since: "2.4.0",
-        dropFrom: "2.6.0"
-      });
-      warned = true;
+if (typeof Discourse !== "undefined") {
+  let warned = false;
+  Object.defineProperty(Discourse, "User", {
+    get() {
+      if (!warned) {
+        deprecated("Import the User class instead of using User", {
+          since: "2.4.0",
+          dropFrom: "2.6.0"
+        });
+        warned = true;
+      }
+      return User;
     }
-    return User;
-  }
-});
+  });
+}
 
 export default User;
